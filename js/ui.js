@@ -116,7 +116,6 @@ function renderizarGrade() {
             return;
         }
         
-        // Se tem agendamentos, renderiza normal com horário padrão para não quebrar a visualização
         abertura = config.abertura;
         fechamento = config.fechamento;
     }
@@ -148,10 +147,8 @@ function renderizarGrade() {
             const [h, m] = a.hora_inicio.split(':').map(Number); 
             const start = h*60 + m; 
             
-            // Tratamento especial para bloqueios
             let dur = 60;
             if (a.id_servico === 'BLOQUEIO') {
-                // Tenta calcular duração baseada na hora fim, se existir
                 if (a.hora_fim) {
                     const [hFim, mFim] = a.hora_fim.split(':').map(Number);
                     const endMin = hFim * 60 + mFim;
@@ -161,8 +158,6 @@ function renderizarGrade() {
                 const svc = servicosCache.find(s => String(s.id_servico) === String(a.id_servico)); 
                 dur = svc ? parseInt(svc.duracao_minutos) : 60; 
             }
-            
-            // Fallback se duração for <= 0
             if (dur <= 0) dur = 60;
 
             const svc = servicosCache.find(s => String(s.id_servico) === String(a.id_servico)); 
@@ -209,10 +204,9 @@ function renderizarGrade() {
             const isBloqueio = ev.id_servico === 'BLOQUEIO';
 
             if (isBloqueio) {
-                card.style.backgroundColor = '#f1f5f9'; // Slate-100
-                card.style.borderLeftColor = '#64748b'; // Slate-500
-                card.style.color = '#475569'; // Slate-700
-                // Ícone de cadeado para bloqueios
+                card.style.backgroundColor = '#f1f5f9';
+                card.style.borderLeftColor = '#64748b';
+                card.style.color = '#475569';
                 card.innerHTML = `<div class="flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3"></i> <span class="font-bold text-[10px] truncate">${ev.nome_cliente || 'Bloqueado'}</span></div>`;
             } else {
                 const color = getCorServico(ev.svc); 
@@ -263,13 +257,27 @@ function abrirModalBloqueio(h) {
     document.getElementById('modal-bloqueio').classList.add('open');
     document.getElementById('input-data-bloqueio').value = dataAtual.toISOString().split('T')[0];
     if(h) document.getElementById('input-hora-bloqueio').value = h;
-    // Opcional: fechar o modal de agendamento se estiver aberto
     fecharModal('modal-agendamento');
 }
 
 function abrirModalCliente() { document.getElementById('modal-cliente').classList.add('open'); }
 function abrirModalServico() { document.getElementById('modal-servico').classList.add('open'); }
 function abrirModalUsuario() { document.getElementById('modal-usuario').classList.add('open'); }
+
+function abrirModalEditarUsuario(id) {
+    const u = usuariosCache.find(x => String(x.id_usuario) === String(id));
+    if(!u) return;
+
+    document.getElementById('edit-id-usuario').value = u.id_usuario;
+    document.getElementById('edit-nome-usuario').value = u.nome;
+    document.getElementById('edit-email-usuario').value = u.email;
+    document.getElementById('edit-senha-usuario').value = ''; 
+    document.getElementById('edit-nivel-usuario').value = u.nivel;
+    document.getElementById('edit-user-color-input').value = u.cor || '#3b82f6';
+    renderizarColorPickerUsuarioEdicao();
+
+    document.getElementById('modal-editar-usuario').classList.add('open');
+}
 
 function abrirModalVenderPacote() { 
     itensPacoteTemp=[]; 
@@ -351,7 +359,6 @@ function abrirModalDetalhes(id) {
     btnConfirmar.parentNode.replaceChild(nBtn, btnConfirmar);
     nBtn.onclick = () => prepararStatus('Confirmado', nBtn);
     
-    // Tratamento especial botões de ação para Bloqueio
     const btnConcluir = document.getElementById('btn-concluir');
     const btnExcluir = document.getElementById('btn-excluir');
 
@@ -359,13 +366,11 @@ function abrirModalDetalhes(id) {
         nBtn.style.display = 'none';
         btnConcluir.style.display = 'none';
         
-        // Reutiliza botão de excluir para "Desbloquear"
         btnExcluir.style.display = 'flex';
         btnExcluir.innerText = 'Desbloquear Horário';
         btnExcluir.className = 'w-full p-3 bg-red-50 text-red-600 font-bold rounded-xl text-sm border border-red-100 flex items-center justify-center gap-2 btn-anim mt-2';
         btnExcluir.onclick = () => prepararStatus('Excluir', btnExcluir);
     } else {
-        // Lógica Normal
         if (isConcluido || isCancelado) { 
             nBtn.style.display = 'none'; 
             btnConcluir.style.display = 'none'; 
@@ -382,7 +387,6 @@ function abrirModalDetalhes(id) {
             btnConcluir.style.display = 'flex'; 
         }
         
-        // Reseta estilo do botão excluir para o padrão "Apagar Permanentemente"
         btnExcluir.innerText = 'Apagar Permanentemente';
         btnExcluir.className = 'hidden w-full p-3 text-red-400 text-xs font-bold mt-2';
         if (isCancelado) btnExcluir.style.display = 'block';
@@ -470,9 +474,30 @@ function renderizarListaPacotes() {
 function renderizarListaUsuarios() { 
     const container = document.getElementById('lista-usuarios'); 
     container.innerHTML = ''; 
-    usuariosCache.forEach(u => { 
-        container.innerHTML += `<div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">${u.nome.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${u.nome}</h4><p class="text-xs text-slate-400 capitalize">${u.nivel}</p></div></div></div>`; 
-    }); 
+    usuariosCache.forEach(u => {
+        const div = document.createElement('div');
+        div.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center";
+        
+        const bgCor = u.cor || '#e2e8f0';
+        const textCor = u.cor ? 'white' : '#475569';
+        
+        div.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style="background-color: ${bgCor}; color: ${textCor}">
+                    ${u.nome.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                    <h4 class="font-bold text-slate-800">${u.nome}</h4>
+                    <p class="text-xs text-slate-400 capitalize">${u.nivel}</p>
+                </div>
+            </div>
+            <button onclick="abrirModalEditarUsuario('${u.id_usuario}')" class="text-slate-400 hover:text-blue-600 btn-anim">
+                <i data-lucide="edit-2" class="w-5 h-5"></i>
+            </button>
+        `;
+        container.appendChild(div);
+    });
+    lucide.createIcons();
 }
 
 function popularSelectsUsuarios() { 
@@ -555,6 +580,25 @@ function renderizarColorPickerEdicao() {
         };
         c.appendChild(d)
     })
+}
+
+function renderizarColorPickerUsuarioEdicao() {
+    const c = document.getElementById('edit-user-color-picker');
+    if(!c) return;
+    c.innerHTML = '';
+    const current = document.getElementById('edit-user-color-input').value;
+    
+    PALETA_CORES.forEach((cor) => {
+        const d = document.createElement('div');
+        d.className = `color-option ${cor === current ? 'selected' : ''}`;
+        d.style.backgroundColor = cor;
+        d.onclick = () => {
+            document.querySelectorAll('#edit-user-color-picker .color-option').forEach(el => el.classList.remove('selected'));
+            d.classList.add('selected');
+            document.getElementById('edit-user-color-input').value = cor;
+        };
+        c.appendChild(d);
+    });
 }
 
 // ==========================================
