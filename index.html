@@ -139,17 +139,18 @@
             <!-- ABAS INTERNAS DE CONFIG -->
             <div class="flex border-b border-slate-100 mb-4">
                 <button onclick="switchConfigTab('geral')" id="btn-cfg-geral" class="flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600">Geral</button>
+                <button onclick="switchConfigTab('horarios')" id="btn-cfg-horarios" class="flex-1 py-2 text-sm font-bold text-slate-400">Horários</button>
                 <button onclick="switchConfigTab('msg')" id="btn-cfg-msg" class="flex-1 py-2 text-sm font-bold text-slate-400">Mensagens</button>
             </div>
 
             <!-- CFG GERAL -->
             <div id="cfg-area-geral" class="space-y-6">
                 <div>
-                    <label class="block text-sm text-slate-600 mb-1 font-medium">Abertura</label>
+                    <label class="block text-sm text-slate-600 mb-1 font-medium">Abertura Padrão</label>
                     <input type="time" id="cfg-abertura" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-base">
                 </div>
                 <div>
-                    <label class="block text-sm text-slate-600 mb-1 font-medium">Fecho</label>
+                    <label class="block text-sm text-slate-600 mb-1 font-medium">Fecho Padrão</label>
                     <input type="time" id="cfg-fechamento" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-base">
                 </div>
                 <div>
@@ -166,6 +167,11 @@
                         <span class="text-slate-700 font-medium">Permitir Encaixes (Simultâneos)</span>
                     </label>
                 </div>
+            </div>
+
+            <!-- CFG HORARIOS (NOVO) -->
+            <div id="cfg-area-horarios" class="space-y-4 hidden">
+                <div id="lista-horarios-semanais" class="space-y-3"></div>
             </div>
 
             <!-- CFG MENSAGENS -->
