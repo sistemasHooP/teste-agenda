@@ -181,11 +181,15 @@
     <div id="tab-config" class="tab-content admin-only">
         <h2 class="text-xl font-bold text-slate-800 mb-6 pt-4">Configurações</h2>
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6 mb-24">
+            
+            <!-- ABAS INTERNAS DE CONFIG -->
             <div class="flex border-b border-slate-100 mb-4">
                 <button onclick="switchConfigTab('geral')" id="btn-cfg-geral" class="flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600">Geral</button>
                 <button onclick="switchConfigTab('horarios')" id="btn-cfg-horarios" class="flex-1 py-2 text-sm font-bold text-slate-400">Horários</button>
                 <button onclick="switchConfigTab('msg')" id="btn-cfg-msg" class="flex-1 py-2 text-sm font-bold text-slate-400">Mensagens</button>
             </div>
+
+            <!-- CFG GERAL -->
             <div id="cfg-area-geral" class="space-y-6">
                 <div>
                     <label class="block text-sm text-slate-600 mb-1 font-medium">Abertura Padrão</label>
@@ -210,15 +214,22 @@
                     </label>
                 </div>
             </div>
+
+            <!-- CFG HORARIOS -->
             <div id="cfg-area-horarios" class="space-y-4 hidden">
                 <div id="lista-horarios-semanais" class="space-y-3"></div>
             </div>
+
+            <!-- CFG MENSAGENS -->
             <div id="cfg-area-msg" class="space-y-6 hidden">
+                <!-- Template Lembrete -->
                 <div>
                     <label class="block text-sm text-slate-800 font-bold mb-1">Modelo de Lembrete</label>
                     <p class="text-xs text-slate-400 mb-2">Use: {cliente}, {data}, {hora}, {servico}</p>
                     <textarea id="cfg-lembrete-template" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-sm text-slate-600"></textarea>
                 </div>
+
+                <!-- Lista Mensagens Rápidas -->
                 <div>
                     <label class="block text-sm text-slate-800 font-bold mb-2">Mensagens Rápidas</label>
                     <div id="lista-msg-rapidas" class="space-y-2 mb-3"></div>
@@ -228,34 +239,67 @@
                     </div>
                 </div>
             </div>
+
             <button onclick="salvarConfigAPI(this)" class="w-full py-3 btn-primary font-bold shadow-lg shadow-blue-200 btn-anim">Salvar Alterações</button>
         </div>
     </div>
 
-    <!-- Botão Flutuante (FAB) -->
-    <div id="main-fab" class="fab btn-anim hidden" onclick="acaoFab()">
-        <i data-lucide="plus"></i>
-    </div>
+    <!-- Botão Flutuante -->
+    <div id="main-fab" class="fab btn-anim hidden" onclick="acaoFab()"><i data-lucide="plus"></i></div>
 
     <!-- ================== MODAIS ================== -->
 
-    <!-- 15. MODAL HISTÓRICO CLIENTE (NOVO) -->
+    <!-- 15. MODAL HISTÓRICO CLIENTE (ATUALIZADO) -->
     <div id="modal-historico-cliente" class="modal-overlay" style="z-index: 150;">
         <div class="modal-card">
-            <div class="flex justify-between items-center mb-6">
+            <div class="flex justify-between items-center mb-4">
                 <div>
                     <h3 class="text-xl font-bold text-slate-800" id="hist-nome-cliente">Cliente</h3>
                     <p class="text-xs text-slate-400">Histórico de Atendimentos</p>
                 </div>
                 <button onclick="fecharModal('modal-historico-cliente')"><i data-lucide="x" class="text-slate-400"></i></button>
             </div>
-            <div id="lista-historico-conteudo" class="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            
+            <!-- Filtros de Data -->
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
+                <p class="text-xs font-bold text-slate-400 uppercase mb-2">Filtrar por Período</p>
+                <div class="flex gap-2 items-center">
+                    <div class="flex-1">
+                        <input type="date" id="hist-data-inicio" class="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs outline-none" onchange="aplicarFiltroHistorico()">
+                    </div>
+                    <span class="text-slate-400">-</span>
+                    <div class="flex-1">
+                        <input type="date" id="hist-data-fim" class="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs outline-none" onchange="aplicarFiltroHistorico()">
+                    </div>
+                </div>
+            </div>
+
+            <div id="lista-historico-conteudo" class="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                 <!-- Conteúdo Injetado via JS -->
             </div>
         </div>
     </div>
 
-    <!-- 1. MODAL CONFIRMAÇÃO (Genérico) -->
+    <!-- 16. MODAL EDITAR CLIENTE (NOVO) -->
+    <div id="modal-editar-cliente" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Editar Cliente</h3>
+                <button onclick="fecharModal('modal-editar-cliente')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <form id="form-editar-cliente" onsubmit="salvarEdicaoCliente(event)">
+                <input type="hidden" name="id_cliente" id="edit-id-cliente">
+                <div class="space-y-4">
+                    <input type="text" name="nome" id="edit-nome-cliente" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="Nome Completo">
+                    <input type="tel" name="whatsapp" id="edit-whatsapp-cliente" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="WhatsApp">
+                    <input type="email" name="email" id="edit-email-cliente" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="Email">
+                </div>
+                <button type="submit" id="btn-salvar-edicao-cliente" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 1. MODAL CONFIRMAÇÃO -->
     <div id="modal-confirmacao" class="modal-overlay" style="z-index: 120;">
         <div class="modal-card max-w-sm">
             <h3 class="text-lg font-bold text-slate-800 mb-2" id="confirm-titulo">Confirmar</h3>
@@ -267,7 +311,7 @@
         </div>
     </div>
 
-    <!-- 2. MODAL AVISO (Genérico) -->
+    <!-- 2. MODAL AVISO -->
     <div id="modal-aviso" class="modal-overlay" style="z-index: 130;">
         <div class="modal-card max-w-sm text-center">
             <div class="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
