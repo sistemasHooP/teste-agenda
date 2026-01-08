@@ -3,7 +3,7 @@
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializa ícones
+    // Inicializa ícones (Lucide)
     lucide.createIcons();
     
     // Verifica sessão salva
@@ -13,18 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
         iniciarApp(); 
     }
     
-    // Listener do DatePicker
-    document.getElementById('data-picker').addEventListener('change', (e) => { 
-        const p=e.target.value.split('-'); 
-        dataAtual=new Date(p[0],p[1]-1,p[2]); 
-        atualizarDataEPainel(); 
-    });
-
-    // Fechar modais ao clicar fora
+    // Fechar modais ao clicar fora (Overlay)
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
-                fecharModal(overlay.id);
+                // Se for o menu lateral, usa a função específica
+                if (overlay.id === 'menu-overlay') {
+                    toggleMenu();
+                } else {
+                    fecharModal(overlay.id);
+                }
             }
         });
     });
@@ -47,13 +45,21 @@ function iniciarApp() {
     document.getElementById('login-screen').style.display = 'none'; 
     document.getElementById('app-header').classList.remove('hidden'); 
     document.getElementById('app-header').classList.add('flex'); 
-    document.getElementById('bottom-nav').classList.remove('hidden'); 
-    document.getElementById('bottom-nav').classList.add('flex'); 
+    // Navbar inferior removida no novo design
+    // document.getElementById('bottom-nav').classList.remove('hidden'); 
+    
     document.getElementById('main-fab').classList.remove('hidden'); 
     document.getElementById('main-fab').classList.add('flex'); 
     
-    // User Info
-    document.getElementById('user-name-display').innerText = `Olá, ${currentUser.nome}`; 
+    // User Info (Agora no Menu Lateral também)
+    if(document.getElementById('user-name-display')) {
+        document.getElementById('user-name-display').innerText = `Olá, ${currentUser.nome}`;
+    }
+    if(document.getElementById('menu-user-name')) {
+        document.getElementById('menu-user-name').innerText = currentUser.nome;
+        document.getElementById('menu-user-email').innerText = currentUser.email;
+    }
+
     document.getElementById('tab-agenda').classList.add('active');
     
     currentProfId = String(currentUser.id_usuario); 
@@ -62,7 +68,8 @@ function iniciarApp() {
     if (currentUser.nivel !== 'admin') { 
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none'); 
     } else { 
-        document.getElementById('select-profissional-agenda').classList.remove('hidden'); 
+        const selProf = document.getElementById('select-profissional-agenda');
+        if(selProf) selProf.classList.remove('hidden'); 
     }
     
     // Inicializações Visuais
@@ -115,5 +122,6 @@ function carregarDoCache() {
         pacotesCache = cachedPacotes; 
     }
     
+    // Atualiza o painel e RENDERIZA O CALENDÁRIO SEMANAL
     atualizarDataEPainel();
 }
