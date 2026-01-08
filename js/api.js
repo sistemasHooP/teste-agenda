@@ -617,6 +617,54 @@ async function salvarNovoCliente(e) {
     } 
 }
 
+async function salvarEdicaoCliente(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-edicao-cliente');
+    const originalText = btn.innerText;
+    setLoading(btn, true, originalText);
+
+    const f = e.target;
+
+    try {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'updateCliente',
+                id_cliente: f.id_cliente.value,
+                nome: f.nome.value,
+                whatsapp: f.whatsapp.value,
+                email: f.email.value
+            })
+        });
+        
+        const data = await res.json();
+
+        if (data.status === 'sucesso') {
+            // Atualiza cache local
+            const idx = clientesCache.findIndex(c => String(c.id_cliente) === String(f.id_cliente.value));
+            if (idx !== -1) {
+                clientesCache[idx].nome = f.nome.value;
+                clientesCache[idx].whatsapp = f.whatsapp.value;
+                clientesCache[idx].email = f.email.value;
+            }
+            
+            atualizarDatalistClientes();
+            if (abaAtiva === 'clientes') {
+                renderizarListaClientes(document.getElementById('busca-cliente').value);
+            }
+
+            fecharModal('modal-editar-cliente');
+            mostrarAviso('Cliente atualizado!');
+        } else {
+            mostrarAviso(data.mensagem || 'Erro ao atualizar.');
+        }
+    } catch (err) {
+        mostrarAviso('Erro de conexão.');
+    } finally {
+        setLoading(btn, false, originalText);
+    }
+}
+
 // --- SERVIÇOS ---
 
 async function salvarNovoServico(e) { 
