@@ -1,25 +1,25 @@
 /* --- CONSTANTES E ESTADO GLOBAL --- */
 const API_URL = 'https://script.google.com/macros/s/AKfycbxgSkDYPhTJerGbFsubJE9b_xuwCM6KnAtWh5gFF3WEIEGFWf-SIHd_iWUH3J4JitWUHA/exec';
 
-// Estado da Aplicação
-let currentUser = null;
-let currentProfId = null;
-let dataAtual = new Date();
+// Usamos VAR para garantir que ficam presas ao objeto window (acesso global garantido)
+var currentUser = null;
+var currentProfId = null;
+var dataAtual = new Date();
 
 // Caches de Dados
-let servicosCache = [];
-let agendamentosCache = [];
-let clientesCache = [];
-let pacotesCache = [];
-let usuariosCache = [];
-let agendamentosRaw = [];
+var servicosCache = [];
+var agendamentosCache = [];
+var clientesCache = [];
+var pacotesCache = [];
+var usuariosCache = [];
+var agendamentosRaw = [];
 
 // Controle de Sincronização
-let isSyncing = false;
-let pollingInterval = null;
+var isSyncing = false;
+var pollingInterval = null;
 
 // Configuração Padrão
-let config = { 
+var config = { 
     abertura: '08:00', 
     fechamento: '19:00', 
     intervalo_minutos: 60, 
@@ -31,11 +31,12 @@ let config = {
 
 /* --- AUTENTICAÇÃO --- */
 
-async function fazerLogin(e) {
+// Anexar explicitamente ao window
+window.fazerLogin = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-login');
-    // Nota: setLoading é uma função de UI, garantida globalmente pelo ui.js
-    setLoading(btn, true, 'Entrar');
+    // Nota: setLoading é uma função de UI
+    if (typeof window.setLoading === 'function') window.setLoading(btn, true, 'Entrar');
     
     const email = document.getElementById('login-email').value;
     const senha = document.getElementById('login-senha').value;
@@ -51,34 +52,34 @@ async function fazerLogin(e) {
             else sessionStorage.setItem('minhaAgendaUser', JSON.stringify(currentUser));
             
             // Função principal de inicialização (definida no app.js)
-            iniciarApp();
+            if (typeof window.iniciarApp === 'function') window.iniciarApp();
         } else {
-            mostrarAviso(res.mensagem);
-            setLoading(btn, false, 'Entrar');
+            if (typeof window.mostrarAviso === 'function') window.mostrarAviso(res.mensagem);
+            if (typeof window.setLoading === 'function') window.setLoading(btn, false, 'Entrar');
         }
     } catch(err) {
-        mostrarAviso('Erro de conexão');
-        setLoading(btn, false, 'Entrar');
+        if (typeof window.mostrarAviso === 'function') window.mostrarAviso('Erro de conexão');
+        if (typeof window.setLoading === 'function') window.setLoading(btn, false, 'Entrar');
     }
-}
+};
 
-function logout() {
+window.logout = function() {
     localStorage.removeItem('minhaAgendaUser');
     sessionStorage.removeItem('minhaAgendaUser');
     if(pollingInterval) clearInterval(pollingInterval);
     location.reload();
-}
+};
 
 /* --- SINCRONIZAÇÃO DE DADOS (CORE) --- */
 
-async function sincronizarDadosAPI() {
+window.sincronizarDadosAPI = async function() {
     const hasData = document.querySelectorAll('.time-slot').length > 0;
     const container = document.getElementById('agenda-timeline');
     
     if(!hasData && agendamentosRaw.length === 0) {
-        container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>';
+        if(container) container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>';
     } else {
-        showSyncIndicator(true);
+        if (typeof window.showSyncIndicator === 'function') window.showSyncIndicator(true);
     }
     
     try {
@@ -98,14 +99,13 @@ async function sincronizarDadosAPI() {
             fetchSafe('getClientes'),
             fetchSafe('getPacotes'),
             fetchSafe('getAgendamentos'),
-            currentUser.nivel === 'admin' ? fetchSafe('getUsuarios') : Promise.resolve([])
+            (currentUser && currentUser.nivel === 'admin') ? fetchSafe('getUsuarios') : Promise.resolve([])
         ]);
         
         if(resConfig && resConfig.horarios_semanais) {
             config = resConfig;
             saveToCache('config', config);
-            // Função UI (ui.js)
-            atualizarUIConfig();
+            if (typeof window.atualizarUIConfig === 'function') window.atualizarUIConfig();
         }
         
         servicosCache = Array.isArray(resServicos) ? resServicos : [];
@@ -123,29 +123,31 @@ async function sincronizarDadosAPI() {
         usuariosCache = Array.isArray(resUsuarios) ? resUsuarios : [];
         if(usuariosCache.length > 0) saveToCache('usuarios', usuariosCache);
         
-        // Funções de UI e App (definidas no ui.js e app.js)
-        atualizarDataEPainel();
-        atualizarDatalistServicos();
-        atualizarDatalistClientes();
-        renderizarListaServicos();
+        // Funções de UI e App
+        if (typeof window.atualizarDataEPainel === 'function') window.atualizarDataEPainel();
+        if (typeof window.atualizarDatalistServicos === 'function') window.atualizarDatalistServicos();
+        if (typeof window.atualizarDatalistClientes === 'function') window.atualizarDatalistClientes();
+        if (typeof window.renderizarListaServicos === 'function') window.renderizarListaServicos();
         
-        if (currentUser.nivel === 'admin') {
-            renderizarListaPacotes();
-            renderizarListaUsuarios();
-            popularSelectsUsuarios();
+        if (currentUser && currentUser.nivel === 'admin') {
+            if (typeof window.renderizarListaPacotes === 'function') window.renderizarListaPacotes();
+            if (typeof window.renderizarListaUsuarios === 'function') window.renderizarListaUsuarios();
+            if (typeof window.popularSelectsUsuarios === 'function') window.popularSelectsUsuarios();
         }
         
-        atualizarAgendaVisual();
-        showSyncIndicator(false);
+        if (typeof window.atualizarAgendaVisual === 'function') window.atualizarAgendaVisual();
+        if (typeof window.showSyncIndicator === 'function') window.showSyncIndicator(false);
+        
     } catch (error) {
         console.error("Erro sincronização", error);
-        if(!hasData) container.innerHTML = '<p class="text-center text-red-400 text-sm">Erro de conexão.</p>';
-        showSyncIndicator(false);
+        if(!hasData && container) container.innerHTML = '<p class="text-center text-red-400 text-sm">Erro de conexão.</p>';
+        if (typeof window.showSyncIndicator === 'function') window.showSyncIndicator(false);
     }
-}
+};
 
-function recarregarAgendaComFiltro(silencioso = false) {
-    if(!silencioso) showSyncIndicator(true);
+window.recarregarAgendaComFiltro = function(silencioso = false) {
+    if(!silencioso && typeof window.showSyncIndicator === 'function') window.showSyncIndicator(true);
+    
     const modalIdInput = document.getElementById('id-agendamento-ativo');
     const activeTempId = (modalIdInput && String(modalIdInput.value).startsWith('temp_')) ? modalIdInput.value : null;
     let tempItem = null;
@@ -163,48 +165,48 @@ function recarregarAgendaComFiltro(silencioso = false) {
             if (realItem) {
                 const idxLocal = agendamentosRaw.findIndex(a => a.id_agendamento === activeTempId);
                 if(idxLocal !== -1) { agendamentosRaw[idxLocal] = realItem; }
-                modalIdInput.value = realItem.id_agendamento;
-                abrirModalDetalhes(realItem.id_agendamento);
+                if (modalIdInput) modalIdInput.value = realItem.id_agendamento;
+                if (typeof window.abrirModalDetalhes === 'function') window.abrirModalDetalhes(realItem.id_agendamento);
             }
         }
         agendamentosRaw = novosAgendamentos;
         saveToCache('agendamentos', agendamentosRaw);
-        atualizarAgendaVisual();
-        showSyncIndicator(false);
+        if (typeof window.atualizarAgendaVisual === 'function') window.atualizarAgendaVisual();
+        if (typeof window.showSyncIndicator === 'function') window.showSyncIndicator(false);
     })
     .catch((e) => {
         console.error(e);
-        showSyncIndicator(false);
+        if (typeof window.showSyncIndicator === 'function') window.showSyncIndicator(false);
     });
-}
+};
 
-/* --- FUNÇÕES AUXILIARES DE LEITURA (FETCH WRAPPERS) --- */
+/* --- FUNÇÕES AUXILIARES DE LEITURA --- */
 
-function carregarServicos() { 
+window.carregarServicos = function() { 
     fetch(`${API_URL}?action=getServicos`)
         .then(r=>r.json())
         .then(d=>{ 
             servicosCache=d; 
-            renderizarListaServicos(); 
-            atualizarDatalistServicos(); 
+            if (typeof window.renderizarListaServicos === 'function') window.renderizarListaServicos(); 
+            if (typeof window.atualizarDatalistServicos === 'function') window.atualizarDatalistServicos(); 
         }); 
-}
+};
 
-function carregarPacotes() { 
+window.carregarPacotes = function() { 
     fetch(`${API_URL}?action=getPacotes`)
         .then(r=>r.json())
         .then(d=>{ 
             pacotesCache=d; 
-            renderizarListaPacotes(); 
+            if (typeof window.renderizarListaPacotes === 'function') window.renderizarListaPacotes(); 
         }); 
-}
+};
 
-function carregarUsuarios() { 
+window.carregarUsuarios = function() { 
     fetch(`${API_URL}?action=getUsuarios`)
         .then(r=>r.json())
         .then(d=>{ 
             usuariosCache=d; 
-            renderizarListaUsuarios(); 
-            popularSelectsUsuarios(); 
+            if (typeof window.renderizarListaUsuarios === 'function') window.renderizarListaUsuarios(); 
+            if (typeof window.popularSelectsUsuarios === 'function') window.popularSelectsUsuarios(); 
         }); 
-}
+};
