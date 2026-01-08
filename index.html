@@ -290,6 +290,13 @@
                     </div>
                 </div>
                 <button type="submit" id="btn-salvar-agenda" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Confirmar</button>
+                
+                <!-- Link para Bloqueio (Admin Only) -->
+                <div class="mt-4 text-center admin-only">
+                    <button type="button" onclick="abrirModalBloqueio(document.getElementById('input-hora-modal').value)" class="text-xs font-bold text-slate-400 hover:text-slate-600 underline">
+                        Bloquear este horário
+                    </button>
+                </div>
             </form>
         </div>
     </div>
@@ -467,20 +474,22 @@
             </div>
 
             <!-- WhatsApp Actions (Fila do Meio) -->
-            <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Comunicação</h4>
-            <div class="grid grid-cols-3 gap-3 mb-6">
-                <button onclick="enviarLembrete()" class="whatsapp-btn btn-anim">
-                    <i data-lucide="bell-ring"></i>
-                    <span>Lembrete</span>
-                </button>
-                <button onclick="abrirSelecaoMsgRapida()" class="whatsapp-btn btn-anim">
-                    <i data-lucide="message-square"></i>
-                    <span>Rápida</span>
-                </button>
-                <button onclick="abrirChatDireto()" class="whatsapp-btn btn-anim">
-                    <i data-lucide="message-circle"></i>
-                    <span>Conversar</span>
-                </button>
+            <div id="sec-comunicacao">
+                <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Comunicação</h4>
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <button onclick="enviarLembrete()" class="whatsapp-btn btn-anim">
+                        <i data-lucide="bell-ring"></i>
+                        <span>Lembrete</span>
+                    </button>
+                    <button onclick="abrirSelecaoMsgRapida()" class="whatsapp-btn btn-anim">
+                        <i data-lucide="message-square"></i>
+                        <span>Rápida</span>
+                    </button>
+                    <button onclick="abrirChatDireto()" class="whatsapp-btn btn-anim">
+                        <i data-lucide="message-circle"></i>
+                        <span>Conversar</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Ações Administrativas (Rodapé) -->
@@ -507,6 +516,45 @@
 
             <input type="hidden" id="id-agendamento-ativo">
             <input type="hidden" id="id-pacote-agendamento-ativo">
+        </div>
+    </div>
+
+    <!-- 13. MODAL BLOQUEIO DE HORÁRIO -->
+    <div id="modal-bloqueio" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Bloquear Horário</h3>
+                <button onclick="fecharModal('modal-bloqueio')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <form id="form-bloqueio" onsubmit="bloquearHorarioAPI(event)">
+                <div class="space-y-4">
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
+                        <i data-lucide="info" class="inline w-4 h-4 mr-1 -mt-1"></i>
+                        Isso impedirá novos agendamentos neste período.
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Data</label>
+                            <input type="date" name="data" id="input-data-bloqueio" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Início</label>
+                            <input type="time" name="hora" id="input-hora-bloqueio" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Duração (minutos)</label>
+                        <input type="number" name="duracao" value="60" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Motivo</label>
+                        <input type="text" name="motivo" required placeholder="Ex: Almoço, Médico..." class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    </div>
+                </div>
+                <button type="submit" id="btn-salvar-bloqueio" class="w-full mt-6 py-3 bg-slate-800 text-white font-bold rounded-xl shadow-lg shadow-slate-200 btn-anim">
+                    Bloquear
+                </button>
+            </form>
         </div>
     </div>
 
