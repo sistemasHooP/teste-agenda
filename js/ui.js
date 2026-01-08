@@ -18,12 +18,18 @@ function switchTab(t, el) {
 function switchConfigTab(tab) {
     document.getElementById('cfg-area-geral').classList.add('hidden');
     document.getElementById('cfg-area-msg').classList.add('hidden');
+    document.getElementById('cfg-area-horarios').classList.add('hidden');
+
     document.getElementById('btn-cfg-geral').className = 'flex-1 py-2 text-sm font-bold text-slate-400';
     document.getElementById('btn-cfg-msg').className = 'flex-1 py-2 text-sm font-bold text-slate-400';
+    document.getElementById('btn-cfg-horarios').className = 'flex-1 py-2 text-sm font-bold text-slate-400';
 
     if(tab === 'geral') {
         document.getElementById('cfg-area-geral').classList.remove('hidden');
         document.getElementById('btn-cfg-geral').className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
+    } else if (tab === 'horarios') {
+        document.getElementById('cfg-area-horarios').classList.remove('hidden');
+        document.getElementById('btn-cfg-horarios').className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
     } else {
         document.getElementById('cfg-area-msg').classList.remove('hidden');
         document.getElementById('btn-cfg-msg').className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
@@ -76,8 +82,48 @@ function renderizarGrade() {
     if(!container) return; 
     container.innerHTML = '';
 
-    const [hA, mA] = config.abertura.split(':').map(Number); 
-    const [hF, mF] = config.fechamento.split(':').map(Number); 
+    // Determinar horário do dia específico
+    const diaIndex = dataAtual.getDay(); // 0 = Domingo
+    let horarioDia = null;
+    
+    if (config.horarios_semanais && Array.isArray(config.horarios_semanais)) {
+        horarioDia = config.horarios_semanais.find(h => parseInt(h.dia) === diaIndex);
+    }
+
+    // Padrões globais se não houver específico
+    let abertura = config.abertura;
+    let fechamento = config.fechamento;
+    let isDiaFechado = false;
+
+    if (horarioDia) {
+        abertura = horarioDia.inicio;
+        fechamento = horarioDia.fim;
+        if (!horarioDia.ativo) isDiaFechado = true;
+    }
+
+    if (isDiaFechado) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-64 text-slate-400">
+                <i data-lucide="moon" class="w-12 h-12 mb-2 text-slate-300"></i>
+                <p class="font-medium">Fechado neste dia</p>
+                <button onclick="abrirModalAgendamento()" class="mt-4 text-blue-600 text-sm font-bold hover:underline">Agendar mesmo assim</button>
+            </div>
+        `;
+        lucide.createIcons();
+        // Ainda renderizamos os cards se houver agendamentos forçados? 
+        // Vamos renderizar a grade oculta ou permitir o fluxo normal se o admin quiser ver.
+        // Para simplificar, se houver agendamentos, mostramos a grade mesmo "fechado".
+        const temAgendamentos = agendamentosCache.some(a => a.data_agendamento === dataAtual.toISOString().split('T')[0]);
+        if(!temAgendamentos) return;
+        
+        // Se tem agendamentos, limpa a mensagem de fechado e renderiza a grade normal usando o horário padrão
+        container.innerHTML = '';
+        abertura = config.abertura;
+        fechamento = config.fechamento;
+    }
+
+    const [hA, mA] = abertura.split(':').map(Number); 
+    const [hF, mF] = fechamento.split(':').map(Number); 
     const startMin = hA*60 + mA; 
     const endMin = hF*60 + mF; 
     const interval = parseInt(config.intervalo_minutos) || 60; 
@@ -108,7 +154,7 @@ function renderizarGrade() {
         })
         .sort((a,b) => a.start - b.start);
 
-    // Lógica de Agrupamento para sobreposição visual
+    // Lógica de Agrupamento
     let groups = []; 
     let lastEnd = -1; 
     events.forEach(ev => { 
@@ -353,9 +399,6 @@ function renderizarListaPacotes() {
         return; 
     } 
     
-    // Agrupa pacotes visualmente (lógica simplificada para exibição)
-    // Nota: O backend retorna linhas individuais, aqui poderíamos agrupar se necessário
-    // Por simplicidade, exibimos como vem
     pacotesCache.forEach(p => { 
         const div = document.createElement('div'); 
         div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100'; 
@@ -467,6 +510,70 @@ function atualizarUIConfig() {
     // Mensagens
     document.getElementById('cfg-lembrete-template').value = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
     renderizarListaMsgRapidasConfig();
+
+    // Horários Semanais
+    renderizarListaHorariosSemanais();
+}
+
+function renderizarListaHorariosSemanais() {
+    const container = document.getElementById('lista-horarios-semanais');
+    if(!container) return;
+    container.innerHTML = '';
+
+    const diasNomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+    // Inicializa se vazio
+    if (!config.horarios_semanais || !Array.isArray(config.horarios_semanais) || config.horarios_semanais.length === 0) {
+        config.horarios_semanais = diasNomes.map((_, i) => ({
+            dia: i,
+            ativo: i !== 0, // Domingo fechado por padrão
+            inicio: config.abertura || '08:00',
+            fim: config.fechamento || '19:00'
+        }));
+    }
+
+    // Ordena por dia
+    config.horarios_semanais.sort((a, b) => a.dia - b.dia);
+
+    config.horarios_semanais.forEach((diaConfig, index) => {
+        const row = document.createElement('div');
+        row.className = 'bg-slate-50 p-3 rounded-xl border border-slate-200';
+        
+        const isAtivo = diaConfig.ativo;
+
+        row.innerHTML = `
+            <div class="flex items-center justify-between mb-2">
+                <span class="font-bold text-slate-700">${diasNomes[diaConfig.dia]}</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" class="sr-only peer" ${isAtivo ? 'checked' : ''} onchange="toggleDiaSemana(${index})">
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+            <div class="flex gap-3 ${isAtivo ? '' : 'hidden'}">
+                <div class="flex-1">
+                    <label class="text-[10px] uppercase font-bold text-slate-400">Início</label>
+                    <input type="time" value="${diaConfig.inicio}" onchange="atualizarHorarioDia(${index}, 'inicio', this.value)" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm outline-none">
+                </div>
+                <div class="flex-1">
+                    <label class="text-[10px] uppercase font-bold text-slate-400">Fim</label>
+                    <input type="time" value="${diaConfig.fim}" onchange="atualizarHorarioDia(${index}, 'fim', this.value)" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm outline-none">
+                </div>
+            </div>
+            <div class="${isAtivo ? 'hidden' : 'block'} text-center py-2 text-xs text-slate-400 font-medium">
+                Fechado
+            </div>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function toggleDiaSemana(index) {
+    config.horarios_semanais[index].ativo = !config.horarios_semanais[index].ativo;
+    renderizarListaHorariosSemanais();
+}
+
+function atualizarHorarioDia(index, field, value) {
+    config.horarios_semanais[index][field] = value;
 }
 
 function renderizarListaMsgRapidasConfig() {
