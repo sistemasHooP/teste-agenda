@@ -20,14 +20,18 @@ let pacotesCache = [];
 let usuariosCache = [];
 let itensPacoteTemp = [];
 let abaAtiva = 'agenda';
+
+// Configuração atualizada com horarios_semanais
 let config = { 
     abertura: '08:00', 
     fechamento: '19:00', 
     intervalo_minutos: 60, 
     permite_encaixe: false,
     mensagem_lembrete: "Olá {cliente}, seu agendamento é dia {data} às {hora}.",
-    mensagens_rapidas: [] 
+    mensagens_rapidas: [],
+    horarios_semanais: [] // Nova estrutura para dias da semana
 };
+
 let agendamentosRaw = [];
 let isSyncing = false;
 let pollingInterval = null;
