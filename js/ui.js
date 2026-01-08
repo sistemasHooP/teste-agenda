@@ -1,18 +1,72 @@
 // ==========================================
+// MENU LATERAL (SIDEBAR)
+// ==========================================
+function toggleMenu() {
+    const menu = document.getElementById('side-menu');
+    const overlay = document.getElementById('menu-overlay');
+    
+    if (menu.classList.contains('open')) {
+        menu.classList.remove('open');
+        overlay.classList.remove('open');
+        // Pequeno delay para display none no overlay
+        setTimeout(() => overlay.style.display = 'none', 300);
+    } else {
+        overlay.style.display = 'block';
+        // Força reflow para transição funcionar
+        void overlay.offsetWidth;
+        menu.classList.add('open');
+        overlay.classList.add('open');
+        
+        // Atualiza info do usuário no menu
+        if(currentUser) {
+            document.getElementById('menu-user-name').innerText = currentUser.nome;
+            document.getElementById('menu-user-email').innerText = currentUser.email;
+        }
+    }
+}
+
+// ==========================================
 // NAVEGAÇÃO E ABAS
 // ==========================================
 function switchTab(t, el) { 
     abaAtiva = t; 
-    document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active')); 
-    el.classList.add('active'); 
+    
+    // Atualiza menu lateral (se vier dele)
+    document.querySelectorAll('.menu-item').forEach(i=>i.classList.remove('active'));
+    if(el) el.classList.add('active');
     
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active')); 
     document.getElementById(`tab-${t}`).classList.add('active'); 
     
-    document.getElementById('main-fab').style.display = t==='config'?'none':'flex'; 
+    // Header Title Update
+    const titles = {
+        'agenda': 'Minha Agenda',
+        'servicos': 'Serviços',
+        'pacotes': 'Pacotes',
+        'equipa': 'Equipe',
+        'config': 'Configurações'
+    };
+    document.getElementById('header-title').innerText = titles[t] || 'Minha Agenda';
+
+    // FAB Visibility
+    const fab = document.getElementById('main-fab');
+    if (t === 'config') fab.style.display = 'none';
+    else {
+        fab.style.display = 'flex';
+        // Remove classes antigas e re-adiciona animação
+        fab.classList.remove('btn-anim');
+        void fab.offsetWidth; 
+        fab.classList.add('btn-anim');
+    }
     
+    // Ações Específicas
     if (t === 'pacotes') carregarPacotes(); 
     if (t === 'config') atualizarUIConfig();
+    if (t === 'agenda') {
+        // Recalcula calendário se voltar para agenda
+        renderizarCalendarioSemanal();
+        atualizarAgendaVisual();
+    }
 }
 
 function switchConfigTab(tab) {
@@ -44,17 +98,77 @@ function acaoFab() {
 }
 
 // ==========================================
-// AGENDA E TIMELINE
+// AGENDA E CALENDÁRIO SEMANAL
 // ==========================================
-function mudarDia(d) { 
-    dataAtual.setDate(dataAtual.getDate()+d); 
-    atualizarDataEPainel(); 
+
+function irParaHoje() {
+    dataAtual = new Date();
+    atualizarDataEPainel();
+}
+
+function mudarSemana(direcao) {
+    // Adiciona ou remove 7 dias
+    dataAtual.setDate(dataAtual.getDate() + (direcao * 7));
+    atualizarDataEPainel();
+}
+
+function selecionarDiaSemana(diaIso) {
+    const partes = diaIso.split('-');
+    dataAtual = new Date(partes[0], partes[1] - 1, partes[2]);
+    atualizarDataEPainel();
 }
 
 function atualizarDataEPainel() {
-    document.getElementById('data-picker').value = dataAtual.toISOString().split('T')[0]; 
-    document.getElementById('dia-semana-display').innerText = dataAtual.toLocaleDateString('pt-PT', {weekday:'long', day:'numeric', month:'long'});
+    // Atualiza input hidden ou visual se necessário (mantido para compatibilidade)
+    const picker = document.getElementById('data-picker');
+    if(picker) picker.value = dataAtual.toISOString().split('T')[0];
+    
+    renderizarCalendarioSemanal();
     atualizarAgendaVisual(); 
+}
+
+function renderizarCalendarioSemanal() {
+    const container = document.getElementById('week-calendar-days');
+    const labelMes = document.getElementById('current-month-year');
+    if(!container) return;
+
+    container.innerHTML = '';
+    
+    // Atualiza Label do Mês (Ex: Janeiro 2026)
+    const mesAno = dataAtual.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+    if(labelMes) labelMes.innerText = mesAno.charAt(0).toUpperCase() + mesAno.slice(1);
+
+    // Encontrar o Domingo da semana atual
+    const diaSemana = dataAtual.getDay(); // 0 (Dom) a 6 (Sab)
+    const domingoDaSemana = new Date(dataAtual);
+    domingoDaSemana.setDate(dataAtual.getDate() - diaSemana);
+
+    const hojeIso = new Date().toISOString().split('T')[0];
+    const selecionadoIso = dataAtual.toISOString().split('T')[0];
+    const diasSigla = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+
+    // Gera os 7 dias
+    for (let i = 0; i < 7; i++) {
+        const diaLoop = new Date(domingoDaSemana);
+        diaLoop.setDate(domingoDaSemana.getDate() + i);
+        
+        const diaIso = diaLoop.toISOString().split('T')[0];
+        const numeroDia = diaLoop.getDate();
+        
+        const isSelected = diaIso === selecionadoIso;
+        const isToday = diaIso === hojeIso;
+
+        const el = document.createElement('div');
+        el.className = `day-col ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`;
+        el.onclick = () => selecionarDiaSemana(diaIso);
+        
+        el.innerHTML = `
+            <span class="week-day-name">${diasSigla[i]}</span>
+            <span class="week-day-number">${numeroDia}</span>
+        `;
+        
+        container.appendChild(el);
+    }
 }
 
 function mudarProfissionalAgenda() { 
@@ -83,14 +197,13 @@ function renderizarGrade() {
     container.innerHTML = '';
 
     // Determinar horário do dia específico
-    const diaIndex = dataAtual.getDay(); // 0 = Domingo
+    const diaIndex = dataAtual.getDay(); 
     let horarioDia = null;
     
     if (config.horarios_semanais && Array.isArray(config.horarios_semanais)) {
         horarioDia = config.horarios_semanais.find(h => parseInt(h.dia) === diaIndex);
     }
 
-    // Padrões globais se não houver específico
     let abertura = config.abertura;
     let fechamento = config.fechamento;
     let isDiaFechado = false;
@@ -115,7 +228,6 @@ function renderizarGrade() {
             lucide.createIcons();
             return;
         }
-        
         abertura = config.abertura;
         fechamento = config.fechamento;
     }
@@ -127,7 +239,6 @@ function renderizarGrade() {
     const interval = parseInt(config.intervalo_minutos) || 60; 
     const dateIso = dataAtual.toISOString().split('T')[0];
 
-    // Renderiza Slots Vazios
     for(let m = startMin; m < endMin; m += interval) { 
         const hSlot = Math.floor(m/60); 
         const mSlot = m % 60; 
@@ -140,7 +251,6 @@ function renderizarGrade() {
         container.appendChild(div); 
     }
 
-    // Processa Eventos
     const events = agendamentosCache
         .filter(a => a.data_agendamento === dateIso && a.hora_inicio)
         .map(a => { 
@@ -165,7 +275,6 @@ function renderizarGrade() {
         })
         .sort((a,b) => a.start - b.start);
 
-    // Lógica de Agrupamento
     let groups = []; 
     let lastEnd = -1; 
     events.forEach(ev => { 
@@ -178,7 +287,6 @@ function renderizarGrade() {
         } 
     });
 
-    // Renderiza Cartões
     groups.forEach(group => { 
         const width = 100 / group.length; 
         group.forEach((ev, idx) => { 
@@ -329,7 +437,6 @@ function abrirModalDetalhes(id) {
     const isConcluido = ag.status === 'Concluido';
     const isCancelado = ag.status === 'Cancelado';
 
-    // Preenche info
     document.getElementById('detalhe-cliente').innerText = isBloqueio ? (ag.observacoes || 'Bloqueio') : nomeCliente;
     document.getElementById('detalhe-servico').innerText = isBloqueio ? 'Horário Bloqueado' : (servico ? servico.nome_servico : 'Serviço');
     document.getElementById('detalhe-data').innerText = formatarDataBr(ag.data_agendamento);
@@ -345,11 +452,9 @@ function abrirModalDetalhes(id) {
     else if(ag.status === 'Confirmado') badge.className += 'bg-green-100 text-green-700';
     else badge.className += 'bg-blue-100 text-blue-700';
 
-    // Seções para esconder no bloqueio
     const commsDiv = document.getElementById('sec-comunicacao');
     if(commsDiv) commsDiv.style.display = isBloqueio ? 'none' : 'block';
 
-    // Visibilidade botões
     document.getElementById('btn-editar-horario').style.display = isConcluido || isCancelado || isBloqueio ? 'none' : 'flex';
     document.getElementById('btn-cancelar').style.display = isConcluido || isCancelado || isBloqueio ? 'none' : 'flex';
     document.getElementById('btn-excluir').style.display = isCancelado ? 'block' : 'none';
