@@ -1,73 +1,185 @@
 /* --- UI HELPERS --- */
 
-function setLoading(btn, l, t) {
+// Variáveis de estado local para UI
+var itensPacoteTemp = [];
+var abaAtiva = 'agenda'; 
+
+window.setLoading = function(btn, l, t) {
     if (!btn) return;
     btn.disabled = l;
     if (l) {
-        const isDarkBg = btn.classList.contains('btn-primary') || btn.classList.contains('bg-blue-600') || btn.classList.contains('bg-red-600') || btn.classList.contains('bg-slate-700');
+        // Verifica se o botão tem fundo escuro para decidir a cor do spinner
+        const isDarkBg = btn.classList.contains('btn-primary') || 
+                         btn.classList.contains('bg-blue-600') || 
+                         btn.classList.contains('bg-red-600') || 
+                         btn.classList.contains('bg-slate-700');
         const spinnerType = isDarkBg ? 'spinner' : 'spinner spinner-dark';
         btn.innerHTML = `<span class="${spinnerType}"></span>`;
     } else {
         btn.innerHTML = t;
     }
-}
+};
 
-function mostrarAviso(msg) {
+window.mostrarAviso = function(msg) {
     const el = document.getElementById('aviso-msg');
     if (el) el.innerText = msg;
-    document.getElementById('modal-aviso').classList.add('open');
-}
+    const modal = document.getElementById('modal-aviso');
+    if (modal) modal.classList.add('open');
+};
 
-function fecharModal(id) {
+window.fecharModal = function(id) {
     const el = document.getElementById(id);
     if (el) el.classList.remove('open');
-    if(id==='modal-agendamento') document.getElementById('area-pacote-info')?.classList.add('hidden');
-}
+    if(id === 'modal-agendamento') {
+        const info = document.getElementById('area-pacote-info');
+        if(info) info.classList.add('hidden');
+    }
+};
 
-function mostrarConfirmacao(t, m, yesCb, noCb, yesTxt='Sim', noTxt='Cancelar') {
-    document.getElementById('confirm-titulo').innerText = t;
-    document.getElementById('confirm-msg').innerText = m;
+window.mostrarConfirmacao = function(t, m, yesCb, noCb, yesTxt='Sim', noTxt='Cancelar') {
+    const titulo = document.getElementById('confirm-titulo');
+    const msg = document.getElementById('confirm-msg');
+    if(titulo) titulo.innerText = t;
+    if(msg) msg.innerText = m;
+    
     const oldY = document.getElementById('btn-confirm-yes');
     const oldN = document.getElementById('btn-confirm-no');
-    const newY = oldY.cloneNode(true);
-    const newN = oldN.cloneNode(true);
-    newY.innerText = yesTxt;
-    newN.innerText = noTxt;
-    newY.disabled = false;
-    newN.disabled = false;
-    oldY.parentNode.replaceChild(newY, oldY);
-    oldN.parentNode.replaceChild(newN, oldN);
-    newY.onclick = () => { yesCb(); };
-    newN.onclick = () => { fecharModal('modal-confirmacao'); if(noCb) noCb(); };
+    
+    if(oldY && oldN) {
+        const newY = oldY.cloneNode(true);
+        const newN = oldN.cloneNode(true);
+        newY.innerText = yesTxt;
+        newN.innerText = noTxt;
+        newY.disabled = false;
+        newN.disabled = false;
+        oldY.parentNode.replaceChild(newY, oldY);
+        oldN.parentNode.replaceChild(newN, oldN);
+        newY.onclick = () => { yesCb(); };
+        newN.onclick = () => { window.fecharModal('modal-confirmacao'); if(noCb) noCb(); };
+    }
+    
     document.getElementById('modal-confirmacao').classList.add('open');
-}
+};
 
-function showSyncIndicator(show) {
-    // isSyncing está em api.js
+window.showSyncIndicator = function(show) {
     if(typeof isSyncing !== 'undefined') isSyncing = show;
     const el = document.getElementById('sync-indicator');
     if(el) el.style.display = show ? 'flex' : 'none';
-}
+};
+
+/* --- FUNÇÕES DE MENSAGENS (WHATSAPP) --- */
+
+window.getWhatsappCliente = function(idAgendamento) {
+    if (typeof agendamentosCache === 'undefined') return null;
+    const ag = agendamentosCache.find(a => a.id_agendamento === idAgendamento);
+    if (!ag) return null;
+    
+    let cliente = null;
+    // Tenta encontrar cliente pelo ID se disponível, senão pelo nome
+    if (ag.id_cliente && ag.id_cliente !== 'cli_temp') {
+        cliente = clientesCache.find(c => String(c.id_cliente) === String(ag.id_cliente));
+    } else {
+        cliente = clientesCache.find(c => c.nome === ag.nome_cliente);
+    }
+    
+    if (cliente && cliente.whatsapp) {
+        return cliente.whatsapp.replace(/\D/g, ''); // Remove caracteres não numéricos
+    }
+    return null;
+};
+
+window.enviarLembrete = function() {
+    const idEl = document.getElementById('id-agendamento-ativo');
+    if(!idEl) return;
+    const id = idEl.value;
+    
+    const ag = agendamentosCache.find(a => a.id_agendamento === id);
+    if (!ag) return;
+
+    const numero = window.getWhatsappCliente(id);
+    if (!numero) {
+        window.mostrarAviso('Cliente sem WhatsApp cadastrado.');
+        return;
+    }
+
+    const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico));
+    const nomeServico = servico ? servico.nome_servico : 'Serviço';
+    
+    // Formata a mensagem usando o template da configuração
+    let msg = "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
+    if (typeof config !== 'undefined' && config.mensagem_lembrete) {
+        msg = config.mensagem_lembrete;
+    }
+    
+    msg = msg.replace('{cliente}', ag.nome_cliente || '')
+             .replace('{data}', formatarDataBr(ag.data_agendamento))
+             .replace('{hora}', ag.hora_inicio || '')
+             .replace('{servico}', nomeServico);
+
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
+};
+
+window.abrirChatDireto = function() {
+    const idEl = document.getElementById('id-agendamento-ativo');
+    if(!idEl) return;
+    const id = idEl.value;
+    
+    const numero = window.getWhatsappCliente(id);
+    
+    if(!numero) { 
+        window.mostrarAviso('Cliente sem WhatsApp cadastrado.'); 
+        return; 
+    }
+    
+    window.open(`https://wa.me/${numero}`, '_blank');
+};
+
+window.abrirSelecaoMsgRapida = function() { 
+    const idEl = document.getElementById('id-agendamento-ativo');
+    if(!idEl) return;
+    const id = idEl.value;
+    
+    const numero = window.getWhatsappCliente(id); 
+    if(!numero) { window.mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; } 
+    
+    const lista = document.getElementById('lista-selecao-msg'); 
+    if(lista) lista.innerHTML = ''; 
+    
+    if(!config.mensagens_rapidas || config.mensagens_rapidas.length === 0) { 
+        if(lista) lista.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">Nenhuma mensagem cadastrada em Configurações.</p>'; 
+    } else { 
+        config.mensagens_rapidas.forEach(msg => { 
+            const btn = document.createElement('button'); 
+            btn.className = 'w-full text-left p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 text-sm text-slate-700 transition-colors'; 
+            btn.innerText = msg; 
+            btn.onclick = () => { 
+                window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank'); 
+                window.fecharModal('modal-selecao-msg'); 
+            }; 
+            if(lista) lista.appendChild(btn); 
+        }); 
+    } 
+    document.getElementById('modal-selecao-msg').classList.add('open'); 
+};
 
 /* --- NAVEGAÇÃO E ABAS --- */
 
-let abaAtiva = 'agenda'; // Variável de estado local para UI
-
-function switchTab(t, el) {
+window.switchTab = function(t, el) {
     abaAtiva = t;
     document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
     el.classList.add('active');
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-    document.getElementById(`tab-${t}`).classList.add('active');
+    const tabContent = document.getElementById(`tab-${t}`);
+    if(tabContent) tabContent.classList.add('active');
+    
     const fab = document.getElementById('main-fab');
     if(fab) fab.style.display = t==='config'?'none':'flex';
     
-    // Funções de carregamento de api.js
-    if (t === 'pacotes' && typeof carregarPacotes === 'function') carregarPacotes();
-    if (t === 'config' && typeof atualizarUIConfig === 'function') atualizarUIConfig();
-}
+    if (t === 'pacotes' && typeof window.carregarPacotes === 'function') window.carregarPacotes();
+    if (t === 'config' && typeof window.atualizarUIConfig === 'function') window.atualizarUIConfig();
+};
 
-function switchConfigTab(tab) {
+window.switchConfigTab = function(tab) {
     document.getElementById('cfg-area-geral').classList.add('hidden');
     document.getElementById('cfg-area-msg').classList.add('hidden');
     document.getElementById('btn-cfg-geral').className = 'flex-1 py-2 text-sm font-bold text-slate-400';
@@ -80,43 +192,43 @@ function switchConfigTab(tab) {
         document.getElementById('cfg-area-msg').classList.remove('hidden');
         document.getElementById('btn-cfg-msg').className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
     }
-}
+};
 
-function acaoFab() {
-    if(abaAtiva==='servicos') abrirModalServico();
-    else if(abaAtiva==='agenda') abrirModalAgendamento();
-    else if(abaAtiva==='pacotes') abrirModalVenderPacote();
-    else if(abaAtiva==='equipa') abrirModalUsuario();
-}
+window.acaoFab = function() {
+    if(abaAtiva==='servicos') window.abrirModalServico();
+    else if(abaAtiva==='agenda') window.abrirModalAgendamento();
+    else if(abaAtiva==='pacotes') window.abrirModalVenderPacote();
+    else if(abaAtiva==='equipa') window.abrirModalUsuario();
+};
 
 /* --- CONTROLE DE DATA E PAINEL --- */
 
-function mudarSemana(d) {
+window.mudarSemana = function(d) {
     if(typeof dataAtual === 'undefined') return;
     dataAtual.setDate(dataAtual.getDate() + (d * 7));
-    atualizarDataEPainel();
-}
+    window.atualizarDataEPainel();
+};
 
-function selecionarDia(dataIso) {
+window.selecionarDia = function(dataIso) {
     const parts = dataIso.split('-');
     dataAtual = new Date(parts[0], parts[1]-1, parts[2]);
-    atualizarDataEPainel();
-}
+    window.atualizarDataEPainel();
+};
 
-function atualizarDataEPainel() {
+window.atualizarDataEPainel = function() {
     const picker = document.getElementById('data-picker');
     if(picker) picker.value = dataAtual.toISOString().split('T')[0];
     
     const display = document.getElementById('mes-ano-display');
     if(display) display.innerText = dataAtual.toLocaleDateString('pt-PT', {month:'long', year:'numeric'});
     
-    renderizarBarraSemanal();
-    atualizarAgendaVisual();
-}
+    window.renderizarBarraSemanal();
+    window.atualizarAgendaVisual();
+};
 
 /* --- RENDERIZADORES DE AGENDA --- */
 
-function renderizarBarraSemanal() {
+window.renderizarBarraSemanal = function() {
     const container = document.getElementById('barra-dias-semana');
     if(!container) return;
     container.innerHTML = '';
@@ -140,18 +252,17 @@ function renderizarBarraSemanal() {
         if (diaIso === selecionadoStr) div.classList.add('selected');
         else if (diaIso === hojeStr) div.classList.add('is-today');
         
-        div.onclick = () => selecionarDia(diaIso);
+        div.onclick = () => window.selecionarDia(diaIso);
         div.innerHTML = `<span class="day-name">${diaNome}</span><span class="day-number">${diaNum}</span>`;
         container.appendChild(div);
     }
-}
+};
 
-function renderizarGrade() {
+window.renderizarGrade = function() {
     const container = document.getElementById('agenda-timeline');
     if(!container) return;
     container.innerHTML = '';
     
-    // config é global (api.js)
     if(typeof config === 'undefined') return;
 
     const diaSemanaIndex = dataAtual.getDay();
@@ -217,30 +328,29 @@ function renderizarGrade() {
         if (ev.status === 'Bloqueado') {
             card.classList.add('status-bloqueado');
             card.innerHTML = `<i data-lucide="lock" class="w-4 h-4 mr-1"></i><span class="font-bold text-[10px] truncate">${ev.nome_cliente || 'Bloqueado'}</span>`;
-            card.onclick = (e) => { e.stopPropagation(); abrirModalDetalhes(ev.id_agendamento); };
+            card.onclick = (e) => { e.stopPropagation(); window.abrirModalDetalhes(ev.id_agendamento); };
         } else {
             const color = getCorServico(ev.svc);
             card.style.backgroundColor = hexToRgba(color, 0.15);
             card.style.borderLeftColor = color;
             card.style.color = '#1e293b';
-            let statusIcon = '';
+            
             if(ev.status === 'Confirmado') {
-                statusIcon = '<div class="absolute top-1 right-1 bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>';
                 card.classList.add('status-confirmado');
             } else if (ev.status === 'Concluido') card.classList.add('status-concluido');
             else if (ev.status === 'Cancelado') card.classList.add('status-cancelado');
             else card.style.borderLeftColor = color;
             
-            card.onclick = (e) => { e.stopPropagation(); abrirModalDetalhes(ev.id_agendamento); };
+            card.onclick = (e) => { e.stopPropagation(); window.abrirModalDetalhes(ev.id_agendamento); };
             const name = ev.nome_cliente || ev.observacoes || 'Cliente';
             card.innerHTML = `<div style="width:90%" class="font-bold truncate text-[10px]">${name}</div>${height > 25 ? `<div class="text-xs truncate">${ev.hora_inicio} • ${ev.svc ? ev.svc.nome_servico : 'Serviço'}</div>` : ''}`;
         }
         slotEl.appendChild(card);
     });
     if(typeof lucide !== 'undefined') lucide.createIcons();
-}
+};
 
-function atualizarAgendaVisual() {
+window.atualizarAgendaVisual = function() {
     if (typeof agendamentosRaw === 'undefined' || !agendamentosRaw) return;
     const filtroId = String(currentProfId);
     agendamentosCache = agendamentosRaw.filter(a => {
@@ -248,12 +358,12 @@ function atualizarAgendaVisual() {
         if (currentUser.nivel === 'admin') { return aId === filtroId; }
         else { return aId === String(currentUser.id_usuario); }
     });
-    renderizarGrade();
-}
+    window.renderizarGrade();
+};
 
 /* --- RENDERIZADORES DE LISTAS E CONFIG --- */
 
-function atualizarUIConfig() {
+window.atualizarUIConfig = function() {
     if(typeof config === 'undefined') return;
     document.getElementById('cfg-intervalo').value = config.intervalo_minutos;
     document.getElementById('cfg-concorrencia').checked = config.permite_encaixe;
@@ -275,20 +385,21 @@ function atualizarUIConfig() {
         container.appendChild(div);
     });
     
-    renderizarListaMsgRapidasConfig();
-}
+    window.renderizarListaMsgRapidasConfig();
+};
 
-function toggleDiaSemana(idx, ativo) {
+window.toggleDiaSemana = function(idx, ativo) {
     config.horarios_semanais[idx].ativo = ativo;
     document.getElementById(`horarios-dia-${idx}`).classList.toggle('hidden', !ativo);
-}
+};
 
-function updateHorarioDia(idx, campo, valor) {
+window.updateHorarioDia = function(idx, campo, valor) {
     config.horarios_semanais[idx][campo] = valor;
-}
+};
 
-function renderizarListaMsgRapidasConfig() {
+window.renderizarListaMsgRapidasConfig = function() {
     const div = document.getElementById('lista-msg-rapidas');
+    if(!div) return;
     div.innerHTML = '';
     if(!config.mensagens_rapidas) config.mensagens_rapidas = [];
     config.mensagens_rapidas.forEach((msg, idx) => {
@@ -298,93 +409,161 @@ function renderizarListaMsgRapidasConfig() {
         div.appendChild(item);
     });
     if(typeof lucide !== 'undefined') lucide.createIcons();
-}
+};
 
-function adicionarMsgRapida() {
+window.adicionarMsgRapida = function() {
     const input = document.getElementById('nova-msg-rapida');
     const val = input.value.trim();
     if(!val) return;
     if(!config.mensagens_rapidas) config.mensagens_rapidas = [];
     config.mensagens_rapidas.push(val);
     input.value = '';
-    renderizarListaMsgRapidasConfig();
-}
+    window.renderizarListaMsgRapidasConfig();
+};
 
-function removerMsgRapida(idx) {
+window.removerMsgRapida = function(idx) {
     config.mensagens_rapidas.splice(idx, 1);
-    renderizarListaMsgRapidasConfig();
-}
+    window.renderizarListaMsgRapidasConfig();
+};
 
-function atualizarDatalistServicos() { const dl = document.getElementById('lista-servicos-datalist'); if(dl) { dl.innerHTML = ''; servicosCache.forEach(i=>{ const o=document.createElement('option'); o.value=i.nome_servico; dl.appendChild(o); }); } }
-function atualizarDatalistClientes() { const dl = document.getElementById('lista-clientes'); if(dl) { dl.innerHTML = ''; clientesCache.forEach(c=>{ const o=document.createElement('option'); o.value=c.nome; dl.appendChild(o); }); } }
+window.atualizarDatalistServicos = function() { const dl = document.getElementById('lista-servicos-datalist'); if(dl) { dl.innerHTML = ''; servicosCache.forEach(i=>{ const o=document.createElement('option'); o.value=i.nome_servico; dl.appendChild(o); }); } };
+window.atualizarDatalistClientes = function() { const dl = document.getElementById('lista-clientes'); if(dl) { dl.innerHTML = ''; clientesCache.forEach(c=>{ const o=document.createElement('option'); o.value=c.nome; dl.appendChild(o); }); } };
 
-function popularSelectsUsuarios() { 
+window.popularSelectsUsuarios = function() { 
     const selectHeader = document.getElementById('select-profissional-agenda'); 
-    selectHeader.innerHTML = ''; 
-    const optMe = document.createElement('option'); 
-    optMe.value = currentUser.id_usuario; 
-    optMe.text = "Minha Agenda"; 
-    selectHeader.appendChild(optMe); 
-    
-    usuariosCache.forEach(u => { 
-        if (u.id_usuario !== currentUser.id_usuario) { 
-            const opt = document.createElement('option'); 
-            opt.value = u.id_usuario; 
-            opt.text = u.nome; 
-            selectHeader.appendChild(opt); 
-        } 
-    }); 
+    if(selectHeader) {
+        selectHeader.innerHTML = ''; 
+        const optMe = document.createElement('option'); 
+        optMe.value = currentUser.id_usuario; 
+        optMe.text = "Minha Agenda"; 
+        selectHeader.appendChild(optMe); 
+        
+        usuariosCache.forEach(u => { 
+            if (u.id_usuario !== currentUser.id_usuario) { 
+                const opt = document.createElement('option'); 
+                opt.value = u.id_usuario; 
+                opt.text = u.nome; 
+                selectHeader.appendChild(opt); 
+            } 
+        }); 
+    }
     
     const selectModal = document.getElementById('select-prof-modal'); 
-    selectModal.innerHTML = ''; 
-    const optMeModal = document.createElement('option'); 
-    optMeModal.value = currentUser.id_usuario; 
-    optMeModal.text = currentUser.nome + " (Eu)"; 
-    selectModal.appendChild(optMeModal); 
-    
-    usuariosCache.forEach(u => { 
-        if (u.id_usuario !== currentUser.id_usuario) { 
-            const opt = document.createElement('option'); 
-            opt.value = u.id_usuario; 
-            opt.text = u.nome; 
-            selectModal.appendChild(opt); 
-        } 
+    if(selectModal) {
+        selectModal.innerHTML = ''; 
+        const optMeModal = document.createElement('option'); 
+        optMeModal.value = currentUser.id_usuario; 
+        optMeModal.text = currentUser.nome + " (Eu)"; 
+        selectModal.appendChild(optMeModal); 
+        
+        usuariosCache.forEach(u => { 
+            if (u.id_usuario !== currentUser.id_usuario) { 
+                const opt = document.createElement('option'); 
+                opt.value = u.id_usuario; 
+                opt.text = u.nome; 
+                selectModal.appendChild(opt); 
+            } 
+        }); 
+    }
+};
+
+window.renderizarListaServicos = function() { 
+    const container = document.getElementById('lista-servicos'); 
+    if(!container) return;
+    container.innerHTML = ''; 
+    servicosCache.forEach(s => { 
+        const div = document.createElement('div'); 
+        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center'; 
+        div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style="background-color: ${getCorServico(s)}">${s.nome_servico.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${s.nome_servico}</h4><p class="text-xs text-slate-500">${s.duracao_minutos} min • R$ ${parseFloat(s.valor_unitario).toFixed(2)}</p></div></div><button onclick="abrirModalEditarServico('${s.id_servico}')" class="text-slate-400 hover:text-blue-600"><i data-lucide="edit-2" class="w-5 h-5"></i></button>`; 
+        container.appendChild(div); 
     }); 
-}
+    if(typeof lucide !== 'undefined') lucide.createIcons(); 
+};
 
-function renderizarListaServicos() { const container = document.getElementById('lista-servicos'); container.innerHTML = ''; servicosCache.forEach(s => { const div = document.createElement('div'); div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center'; div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style="background-color: ${getCorServico(s)}">${s.nome_servico.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${s.nome_servico}</h4><p class="text-xs text-slate-500">${s.duracao_minutos} min • R$ ${parseFloat(s.valor_unitario).toFixed(2)}</p></div></div><button onclick="abrirModalEditarServico('${s.id_servico}')" class="text-slate-400 hover:text-blue-600"><i data-lucide="edit-2" class="w-5 h-5"></i></button>`; container.appendChild(div); }); if(typeof lucide !== 'undefined') lucide.createIcons(); }
-function renderizarListaPacotes() { const container = document.getElementById('lista-pacotes'); container.innerHTML = ''; if(!pacotesCache || pacotesCache.length === 0) { container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; return; } pacotesCache.forEach(p => { const div = document.createElement('div'); div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100'; div.innerHTML = `<div class="flex justify-between items-start mb-2"><div><h4 class="font-bold text-slate-800">${p.nome_cliente}</h4><p class="text-xs text-slate-500">${p.nome_servico}</p></div><span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">${p.qtd_restante}/${p.qtd_total}</span></div><div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(p.qtd_restante/p.qtd_total)*100}%"></div></div>`; container.appendChild(div); }); }
-function renderizarListaUsuarios() { const container = document.getElementById('lista-usuarios'); container.innerHTML = ''; usuariosCache.forEach(u => { const div = document.createElement('div'); div.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center"; div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">${u.nome.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${u.nome}</h4><p class="text-xs text-slate-400 capitalize">${u.nivel}</p></div></div>`; container.appendChild(div); }); }
+window.renderizarListaPacotes = function() { 
+    const container = document.getElementById('lista-pacotes'); 
+    if(!container) return;
+    container.innerHTML = ''; 
+    if(!pacotesCache || pacotesCache.length === 0) { container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; return; } 
+    pacotesCache.forEach(p => { 
+        const div = document.createElement('div'); 
+        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100'; 
+        div.innerHTML = `<div class="flex justify-between items-start mb-2"><div><h4 class="font-bold text-slate-800">${p.nome_cliente}</h4><p class="text-xs text-slate-500">${p.nome_servico}</p></div><span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">${p.qtd_restante}/${p.qtd_total}</span></div><div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(p.qtd_restante/p.qtd_total)*100}%"></div></div>`; 
+        container.appendChild(div); 
+    }); 
+};
 
-function renderizarColorPicker() { const c=document.getElementById('color-picker-container'); c.innerHTML=''; PALETA_CORES.forEach((cor,i)=>{const d=document.createElement('div');d.className=`color-option ${i===4?'selected':''}`;d.style.backgroundColor=cor;d.onclick=()=>{document.querySelectorAll('.color-option').forEach(el=>el.classList.remove('selected'));d.classList.add('selected');document.getElementById('input-cor-selecionada').value=cor};c.appendChild(d)})}
-function renderizarColorPickerEdicao() { const c=document.getElementById('edit-color-picker-container'); c.innerHTML=''; PALETA_CORES.forEach((cor,i)=>{const d=document.createElement('div');d.className=`color-option ${i===4?'selected':''}`;d.style.backgroundColor=cor;d.onclick=()=>{document.querySelectorAll('#edit-color-picker-container .color-option').forEach(el=>el.classList.remove('selected'));d.classList.add('selected');document.getElementById('edit-input-cor-selecionada').value=cor};c.appendChild(d)})}
+window.renderizarListaUsuarios = function() { 
+    const container = document.getElementById('lista-usuarios'); 
+    if(!container) return;
+    container.innerHTML = ''; 
+    usuariosCache.forEach(u => { 
+        const div = document.createElement('div'); 
+        div.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center"; 
+        div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">${u.nome.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${u.nome}</h4><p class="text-xs text-slate-400 capitalize">${u.nivel}</p></div></div>`; 
+        container.appendChild(div); 
+    }); 
+};
+
+window.renderizarColorPicker = function() { 
+    const c=document.getElementById('color-picker-container'); 
+    if(!c) return;
+    c.innerHTML=''; 
+    PALETA_CORES.forEach((cor,i)=>{
+        const d=document.createElement('div');
+        d.className=`color-option ${i===4?'selected':''}`;
+        d.style.backgroundColor=cor;
+        d.onclick=()=>{
+            document.querySelectorAll('.color-option').forEach(el=>el.classList.remove('selected'));
+            d.classList.add('selected');
+            document.getElementById('input-cor-selecionada').value=cor;
+        };
+        c.appendChild(d);
+    });
+};
+
+window.renderizarColorPickerEdicao = function() { 
+    const c=document.getElementById('edit-color-picker-container'); 
+    if(!c) return;
+    c.innerHTML=''; 
+    PALETA_CORES.forEach((cor,i)=>{
+        const d=document.createElement('div');
+        d.className=`color-option ${i===4?'selected':''}`;
+        d.style.backgroundColor=cor;
+        d.onclick=()=>{
+            document.querySelectorAll('#edit-color-picker-container .color-option').forEach(el=>el.classList.remove('selected'));
+            d.classList.add('selected');
+            document.getElementById('edit-input-cor-selecionada').value=cor;
+        };
+        c.appendChild(d);
+    });
+};
 
 /* --- INTERAÇÕES DE PACOTE E MODAIS --- */
 
-let itensPacoteTemp = [];
-
-function mudarProfissionalAgenda() { 
+window.mudarProfissionalAgenda = function() { 
     currentProfId = document.getElementById('select-profissional-agenda').value; 
-    atualizarAgendaVisual(); 
-}
+    window.atualizarAgendaVisual(); 
+};
 
-function adicionarItemAoPacote() { 
+window.adicionarItemAoPacote = function() { 
     const nomeServico = document.getElementById('input-servico-pacote-nome').value; 
     const qtdInput = document.getElementById('qtd-servico-pacote'); 
     const qtd = parseInt(qtdInput.value); 
     if(!nomeServico || qtd < 1) return; 
     const servico = servicosCache.find(s => s.nome_servico.toLowerCase() === nomeServico.toLowerCase()); 
-    if(!servico) { mostrarAviso('Serviço não encontrado na lista.'); return; } 
+    if(!servico) { window.mostrarAviso('Serviço não encontrado na lista.'); return; } 
     const subtotal = (parseFloat(servico.valor_unitario || 0) * qtd); 
     itensPacoteTemp.push({ id_servico: servico.id_servico, nome_servico: servico.nome_servico, valor_unitario: servico.valor_unitario, qtd: qtd, subtotal: subtotal }); 
-    atualizarListaVisualPacote(); 
-    atualizarTotalSugerido(); 
+    window.atualizarListaVisualPacote(); 
+    window.atualizarTotalSugerido(); 
     document.getElementById('input-servico-pacote-nome').value = ""; 
     qtdInput.value = "1"; 
-}
+};
 
-function atualizarListaVisualPacote() { 
+window.atualizarListaVisualPacote = function() { 
     const container = document.getElementById('lista-itens-pacote'); 
+    if(!container) return;
     container.innerHTML = ''; 
     if(itensPacoteTemp.length === 0) { container.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Nenhum item adicionado.</p>'; return; } 
     itensPacoteTemp.forEach((item, index) => { 
@@ -395,35 +574,48 @@ function atualizarListaVisualPacote() {
         container.appendChild(div); 
     }); 
     if(typeof lucide !== 'undefined') lucide.createIcons(); 
-}
+};
 
-function removerItemPacote(index) { itensPacoteTemp.splice(index, 1); atualizarListaVisualPacote(); atualizarTotalSugerido(); }
-function atualizarTotalSugerido() { const total = itensPacoteTemp.reduce((acc, item) => acc + item.subtotal, 0); document.getElementById('valor-total-pacote').value = total.toFixed(2); }
+window.removerItemPacote = function(index) { 
+    itensPacoteTemp.splice(index, 1); 
+    window.atualizarListaVisualPacote(); 
+    window.atualizarTotalSugerido(); 
+};
 
-function verificarPacoteDisponivel() { 
+window.atualizarTotalSugerido = function() { 
+    const total = itensPacoteTemp.reduce((acc, item) => acc + item.subtotal, 0); 
+    document.getElementById('valor-total-pacote').value = total.toFixed(2); 
+};
+
+window.verificarPacoteDisponivel = function() { 
     const nomeCliente = document.getElementById('input-cliente-nome').value; 
     const nomeServico = document.getElementById('input-servico-nome').value; 
     const areaInfo = document.getElementById('area-pacote-info'); 
     const checkbox = document.getElementById('check-usar-pacote'); 
     const inputIdPacote = document.getElementById('id-pacote-selecionado'); 
-    areaInfo.classList.add('hidden'); 
-    inputIdPacote.value = ''; 
-    checkbox.checked = false; 
+    
+    if(areaInfo) areaInfo.classList.add('hidden'); 
+    if(inputIdPacote) inputIdPacote.value = ''; 
+    if(checkbox) checkbox.checked = false; 
+    
     if(!nomeCliente || !nomeServico) return; 
     const cliente = clientesCache.find(c => c.nome.toLowerCase() === nomeCliente.toLowerCase()); 
     const servico = servicosCache.find(s => s.nome_servico.toLowerCase() === nomeServico.toLowerCase()); 
     if(!cliente || !servico) return; 
     const pacote = pacotesCache.find(p => String(p.id_cliente) === String(cliente.id_cliente) && String(p.id_servico) === String(servico.id_servico) && parseInt(p.qtd_restante) > 0); 
     if(pacote) { 
-        areaInfo.classList.remove('hidden'); 
-        areaInfo.classList.add('flex'); 
-        document.getElementById('pacote-saldo').innerText = pacote.qtd_restante; 
-        inputIdPacote.value = pacote.id_pacote; 
-        checkbox.checked = true; 
+        if(areaInfo) {
+            areaInfo.classList.remove('hidden'); 
+            areaInfo.classList.add('flex'); 
+        }
+        const saldoEl = document.getElementById('pacote-saldo');
+        if(saldoEl) saldoEl.innerText = pacote.qtd_restante; 
+        if(inputIdPacote) inputIdPacote.value = pacote.id_pacote; 
+        if(checkbox) checkbox.checked = true; 
     } 
-}
+};
 
-function abrirDetalhesPacote(grupo) { 
+window.abrirDetalhesPacote = function(grupo) { 
     const modal = document.getElementById('modal-detalhes-pacote'); 
     const divSaldos = document.getElementById('tab-modal-saldos'); 
     const divHist = document.getElementById('tab-modal-historico'); 
@@ -447,16 +639,16 @@ function abrirDetalhesPacote(grupo) {
         }); 
     } 
     modal.classList.add('open'); 
-}
+};
 
-function switchModalAgendaTab(mode) { 
+window.switchModalAgendaTab = function(mode) { 
     document.querySelectorAll('.tab-agenda-mode').forEach(el => el.classList.add('hidden')); 
     document.querySelectorAll('.modal-tab').forEach(el => el.classList.remove('active')); 
     document.getElementById(`form-${mode}`).classList.remove('hidden'); 
     document.getElementById(`tab-btn-${mode}`).classList.add('active'); 
-}
+};
 
-function abrirModalAgendamento(h) { 
+window.abrirModalAgendamento = function(h) { 
     document.getElementById('modal-agendamento').classList.add('open'); 
     const dataIso = dataAtual.toISOString().split('T')[0]; 
     document.getElementById('input-data-modal').value = dataIso; 
@@ -464,19 +656,19 @@ function abrirModalAgendamento(h) {
         document.getElementById('input-hora-modal').value = h; 
         document.getElementById('input-hora-bloqueio').value = h; 
     } 
-    switchModalAgendaTab('agendar'); 
+    window.switchModalAgendaTab('agendar'); 
     if(currentUser.nivel==='admin'){ 
         document.getElementById('div-select-prof-modal').classList.remove('hidden'); 
         document.getElementById('select-prof-modal').value=currentProfId; 
     } else { 
         document.getElementById('div-select-prof-modal').classList.add('hidden'); 
     } 
-}
+};
 
-function abrirModalDetalhes(id) { 
+window.abrirModalDetalhes = function(id) { 
     const ag = agendamentosCache.find(a => a.id_agendamento === id); 
     if(!ag) return; 
-    resetarBotoesModal(); 
+    window.resetarBotoesModal(); 
     document.getElementById('id-agendamento-ativo').value = id; 
     document.getElementById('id-pacote-agendamento-ativo').value = ag.id_pacote_usado || ''; 
     const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico)); 
@@ -496,9 +688,11 @@ function abrirModalDetalhes(id) {
     else if(isBloqueio) badge.className += 'bg-slate-300 text-slate-600'; 
     else if(ag.status === 'Confirmado') badge.className += 'bg-green-100 text-green-700'; 
     else badge.className += 'bg-blue-100 text-blue-700'; 
+    
     document.getElementById('acoes-whatsapp-area').style.display = isBloqueio ? 'none' : 'block'; 
     document.getElementById('btn-editar-horario').style.display = isConcluido || isCancelado ? 'none' : 'flex'; 
     document.getElementById('btn-cancelar').style.display = isConcluido || isCancelado || isBloqueio ? 'none' : 'flex'; 
+    
     if(isBloqueio) { 
         const btnExcluir = document.getElementById('btn-excluir'); 
         btnExcluir.style.display = 'block'; 
@@ -518,27 +712,27 @@ function abrirModalDetalhes(id) {
     } 
     document.getElementById('modal-detalhes').classList.add('open'); 
     if(typeof lucide !== 'undefined') lucide.createIcons(); 
-}
+};
 
-function resetarBotoesModal() { 
+window.resetarBotoesModal = function() { 
     const btnConf = document.getElementById('btn-confirmar'); 
     btnConf.disabled = false; 
     btnConf.className = "w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-100 flex items-center justify-center gap-2 btn-anim"; 
     btnConf.innerHTML = '<i data-lucide="thumbs-up" class="w-4 h-4"></i> Confirmar Presença'; 
     const btnConc = document.getElementById('btn-concluir'); 
     btnConc.disabled = false; 
-}
+};
 
-function abrirModalCliente() { document.getElementById('modal-cliente').classList.add('open'); }
-function abrirModalServico() { document.getElementById('modal-servico').classList.add('open'); }
-function abrirModalVenderPacote() { itensPacoteTemp=[]; atualizarListaVisualPacote(); document.getElementById('input-servico-pacote-nome').value=''; document.getElementById('valor-total-pacote').value=''; document.getElementById('modal-vender-pacote').classList.add('open'); }
-function abrirModalUsuario() { document.getElementById('modal-usuario').classList.add('open'); }
+window.abrirModalCliente = function() { document.getElementById('modal-cliente').classList.add('open'); };
+window.abrirModalServico = function() { document.getElementById('modal-servico').classList.add('open'); };
+window.abrirModalVenderPacote = function() { itensPacoteTemp=[]; window.atualizarListaVisualPacote(); document.getElementById('input-servico-pacote-nome').value=''; document.getElementById('valor-total-pacote').value=''; document.getElementById('modal-vender-pacote').classList.add('open'); };
+window.abrirModalUsuario = function() { document.getElementById('modal-usuario').classList.add('open'); };
 
-function abrirModalEditarAgendamento() { 
+window.abrirModalEditarAgendamento = function() { 
     const id=document.getElementById('id-agendamento-ativo').value; 
     const ag=agendamentosCache.find(x=>x.id_agendamento===id); 
     if(!ag)return; 
-    fecharModal('modal-detalhes'); 
+    window.fecharModal('modal-detalhes'); 
     document.getElementById('edit-agenda-id').value=id; 
     document.getElementById('edit-agenda-cliente').innerText=ag.nome_cliente; 
     const svc=servicosCache.find(s=>String(s.id_servico)===String(ag.id_servico)); 
@@ -546,9 +740,9 @@ function abrirModalEditarAgendamento() {
     document.getElementById('edit-agenda-data').value=ag.data_agendamento; 
     document.getElementById('edit-agenda-hora').value=ag.hora_inicio; 
     document.getElementById('modal-editar-agendamento').classList.add('open'); 
-}
+};
 
-function abrirModalEditarServico(id) { 
+window.abrirModalEditarServico = function(id) { 
     const s=servicosCache.find(x=>x.id_servico===id); 
     if(!s)return; 
     document.getElementById('edit-id-servico').value=s.id_servico; 
@@ -557,88 +751,6 @@ function abrirModalEditarServico(id) {
     document.getElementById('edit-duracao-servico').value=s.duracao_minutos; 
     document.getElementById('edit-check-online-booking').checked=String(s.agendamento_online)==='true'; 
     document.getElementById('edit-input-cor-selecionada').value=getCorServico(s); 
-    renderizarColorPickerEdicao(); 
+    window.renderizarColorPickerEdicao(); 
     document.getElementById('modal-editar-servico').classList.add('open'); 
-}
-
-function abrirSelecaoMsgRapida() { 
-    const id = document.getElementById('id-agendamento-ativo').value; 
-    const numero = getWhatsappCliente(id); 
-    if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; } 
-    
-    const lista = document.getElementById('lista-selecao-msg'); 
-    lista.innerHTML = ''; 
-    
-    if(!config.mensagens_rapidas || config.mensagens_rapidas.length === 0) { 
-        lista.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">Nenhuma mensagem cadastrada em Configurações.</p>'; 
-    } else { 
-        config.mensagens_rapidas.forEach(msg => { 
-            const btn = document.createElement('button'); 
-            btn.className = 'w-full text-left p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 text-sm text-slate-700 transition-colors'; 
-            btn.innerText = msg; 
-            btn.onclick = () => { 
-                window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank'); 
-                fecharModal('modal-selecao-msg'); 
-            }; 
-            lista.appendChild(btn); 
-        }); 
-    } 
-    document.getElementById('modal-selecao-msg').classList.add('open'); 
-}
-
-function getWhatsappCliente(idAgendamento) {
-    if(typeof agendamentosCache === 'undefined') return null;
-    const ag = agendamentosCache.find(a => a.id_agendamento === idAgendamento);
-    if (!ag) return null;
-    
-    // Tenta encontrar cliente pelo ID se disponível, senão pelo nome
-    let cliente = null;
-    if (ag.id_cliente && ag.id_cliente !== 'cli_temp') {
-        cliente = clientesCache.find(c => String(c.id_cliente) === String(ag.id_cliente));
-    } else {
-        cliente = clientesCache.find(c => c.nome === ag.nome_cliente);
-    }
-    
-    if (cliente && cliente.whatsapp) {
-        return cliente.whatsapp.replace(/\D/g, ''); // Remove caracteres não numéricos
-    }
-    return null;
-}
-
-/* --- FUNÇÕES DE MENSAGENS (FALTAVAM ESTAS) --- */
-
-function enviarLembrete() {
-    const id = document.getElementById('id-agendamento-ativo').value;
-    const ag = agendamentosCache.find(a => a.id_agendamento === id);
-    if (!ag) return;
-
-    const numero = getWhatsappCliente(id);
-    if (!numero) {
-        mostrarAviso('Cliente sem WhatsApp cadastrado.');
-        return;
-    }
-
-    const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico));
-    const nomeServico = servico ? servico.nome_servico : 'Serviço';
-    
-    // Formata a mensagem usando o template da configuração
-    let msg = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
-    msg = msg.replace('{cliente}', ag.nome_cliente)
-             .replace('{data}', formatarDataBr(ag.data_agendamento))
-             .replace('{hora}', ag.hora_inicio)
-             .replace('{servico}', nomeServico);
-
-    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
-}
-
-function abrirChatDireto() {
-    const id = document.getElementById('id-agendamento-ativo').value;
-    const numero = getWhatsappCliente(id);
-    
-    if(!numero) { 
-        mostrarAviso('Cliente sem WhatsApp cadastrado.'); 
-        return; 
-    }
-    
-    window.open(`https://wa.me/${numero}`, '_blank');
-}
+};
