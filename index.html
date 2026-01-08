@@ -50,46 +50,83 @@
         <span>Sincronizando...</span>
     </div>
 
-    <!-- ================== CABEÇALHO ================== -->
-    <header id="app-header" class="bg-white px-5 py-4 shadow-sm sticky top-0 z-20 flex justify-between items-center hidden">
-        <div>
-            <h1 class="text-lg font-bold text-slate-800 flex items-center gap-2 tracking-tight">
-                <i data-lucide="calendar-days" class="w-5 h-5 text-blue-600"></i> 
-                <span id="header-title">Minha Agenda</span>
-            </h1>
-            <p class="text-xs text-slate-400" id="user-name-display"></p>
+    <!-- ================== MENU LATERAL (SIDEBAR) ================== -->
+    <div id="menu-overlay" class="menu-overlay" onclick="toggleMenu()"></div>
+    <aside id="side-menu" class="side-menu">
+        <div class="menu-header">
+            <div class="menu-user-info">
+                <h3 id="menu-user-name">Usuário</h3>
+                <p id="menu-user-email" class="text-xs opacity-80">email@exemplo.com</p>
+            </div>
         </div>
+        <div class="menu-items">
+            <div class="menu-item active" onclick="switchTab('agenda', this); toggleMenu()">
+                <i data-lucide="calendar"></i> Agenda
+            </div>
+            <div class="menu-item admin-only" onclick="switchTab('servicos', this); toggleMenu()">
+                <i data-lucide="sparkles"></i> Serviços
+            </div>
+            <div class="menu-item admin-only" onclick="switchTab('pacotes', this); toggleMenu()">
+                <i data-lucide="package"></i> Pacotes
+            </div>
+            <div class="menu-item admin-only" onclick="switchTab('equipa', this); toggleMenu()">
+                <i data-lucide="users"></i> Equipe
+            </div>
+            <div class="menu-item admin-only" onclick="switchTab('config', this); toggleMenu()">
+                <i data-lucide="settings-2"></i> Configurações
+            </div>
+            <div class="menu-item text-red-500 mt-auto" onclick="logout()">
+                <i data-lucide="log-out"></i> Sair
+            </div>
+        </div>
+    </aside>
+
+    <!-- ================== CABEÇALHO ================== -->
+    <header id="app-header" class="bg-white px-4 py-3 shadow-sm sticky top-0 z-30 flex justify-between items-center hidden">
         <div class="flex items-center gap-3">
+            <button onclick="toggleMenu()" class="p-2 rounded-full hover:bg-slate-100 text-slate-600 btn-anim">
+                <i data-lucide="menu" class="w-6 h-6"></i>
+            </button>
+            <h1 class="text-lg font-bold text-slate-800 tracking-tight" id="header-title">Minha Agenda</h1>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <!-- Select Profissional (Visível apenas para Admin) -->
             <select id="select-profissional-agenda" onchange="mudarProfissionalAgenda()" 
-                class="hidden text-xs bg-slate-100 border-none rounded-lg p-1 text-slate-600 outline-none text-base">
+                class="hidden text-sm bg-slate-100 border-none rounded-lg p-2 text-slate-600 outline-none font-medium max-w-[120px]">
             </select>
-            <button onclick="logout()" class="text-slate-400 hover:text-red-500">
-                <i data-lucide="log-out" class="w-5 h-5"></i>
+            <!-- Botão Hoje -->
+            <button onclick="irParaHoje()" class="p-2 text-blue-600 font-bold text-xs bg-blue-50 rounded-lg btn-anim">
+                HOJE
             </button>
         </div>
     </header>
 
     <!-- ================== ABAS PRINCIPAIS ================== -->
 
-    <!-- 1. AGENDA -->
+    <!-- 1. AGENDA COM CALENDÁRIO SEMANAL -->
     <div id="tab-agenda" class="tab-content active">
-        <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm flex justify-between items-center border border-slate-100 sticky top-0 z-10">
-            <button onclick="mudarDia(-1)" class="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-full text-slate-500 btn-anim">
-                <i data-lucide="chevron-left"></i>
-            </button>
-            <div class="text-center">
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1" id="dia-semana-display">Hoje</p>
-                <input type="date" id="data-picker" 
-                    class="text-base font-bold text-slate-800 bg-transparent text-center outline-none cursor-pointer w-full" 
-                    onchange="atualizarDataEPainel()">
+        <!-- Cabeçalho do Calendário (Fixo ao scroll) -->
+        <div class="calendar-header shadow-sm">
+            <div class="month-nav">
+                <button onclick="mudarSemana(-1)" class="p-1 rounded-full hover:bg-slate-100 text-slate-500 btn-anim">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                </button>
+                <span id="current-month-year" class="month-label">Janeiro 2026</span>
+                <button onclick="mudarSemana(1)" class="p-1 rounded-full hover:bg-slate-100 text-slate-500 btn-anim">
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
             </div>
-            <button onclick="mudarDia(1)" class="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-full text-slate-500 btn-anim">
-                <i data-lucide="chevron-right"></i>
-            </button>
+            
+            <!-- Linha da Semana (Dias) -->
+            <div class="week-row" id="week-calendar-days">
+                <!-- Injetado via JS -->
+            </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[400px]">
-            <div id="agenda-timeline" class="timeline-container pl-2 pr-2 pt-4 pb-10">
+        <!-- Timeline de Horários -->
+        <div class="timeline-container pb-24 relative min-h-[500px]">
+            <div id="agenda-timeline" class="pl-2 pr-2 pt-4">
                 <div class="p-10 text-center text-slate-400">
                     <div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div>
                     <p>A carregar agenda...</p>
@@ -100,7 +137,7 @@
 
     <!-- 2. SERVIÇOS -->
     <div id="tab-servicos" class="tab-content admin-only">
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex justify-between items-center mb-6 pt-4">
             <h2 class="text-xl font-bold text-slate-800">Serviços</h2>
             <button onclick="abrirModalServico()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Novo</button>
         </div>
@@ -111,7 +148,7 @@
 
     <!-- 3. PACOTES -->
     <div id="tab-pacotes" class="tab-content admin-only">
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex justify-between items-center mb-6 pt-4">
             <h2 class="text-xl font-bold text-slate-800">Pacotes Ativos</h2>
             <button onclick="abrirModalVenderPacote()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Vender</button>
         </div>
@@ -120,9 +157,9 @@
         </div>
     </div>
 
-    <!-- 4. EQUIPA -->
+    <!-- 4. EQUIPE -->
     <div id="tab-equipa" class="tab-content admin-only">
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex justify-between items-center mb-6 pt-4">
             <h2 class="text-xl font-bold text-slate-800">Profissionais</h2>
             <button onclick="abrirModalUsuario()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Novo</button>
         </div>
@@ -133,7 +170,7 @@
 
     <!-- 5. CONFIGURAÇÕES -->
     <div id="tab-config" class="tab-content admin-only">
-        <h2 class="text-xl font-bold text-slate-800 mb-6">Configurações</h2>
+        <h2 class="text-xl font-bold text-slate-800 mb-6 pt-4">Configurações</h2>
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6 mb-24">
             
             <!-- ABAS INTERNAS DE CONFIG -->
@@ -169,7 +206,7 @@
                 </div>
             </div>
 
-            <!-- CFG HORARIOS (NOVO) -->
+            <!-- CFG HORARIOS -->
             <div id="cfg-area-horarios" class="space-y-4 hidden">
                 <div id="lista-horarios-semanais" class="space-y-3"></div>
             </div>
@@ -578,15 +615,6 @@
             </form>
         </div>
     </div>
-
-    <!-- NAVBAR INFERIOR -->
-    <nav id="bottom-nav" class="bottom-nav hidden">
-        <div class="nav-item active" onclick="switchTab('agenda', this)"><i data-lucide="calendar"></i><span>Agenda</span></div>
-        <div class="nav-item admin-only" onclick="switchTab('servicos', this)"><i data-lucide="sparkles"></i><span>Serviços</span></div>
-        <div class="nav-item admin-only" onclick="switchTab('pacotes', this)"><i data-lucide="package"></i><span>Pacotes</span></div>
-        <div class="nav-item admin-only" onclick="switchTab('equipa', this)"><i data-lucide="users"></i><span>Equipe</span></div>
-        <div class="nav-item admin-only" onclick="switchTab('config', this)"><i data-lucide="settings-2"></i><span>Config</span></div>
-    </nav>
 
     <!-- SCRIPTS -->
     <script src="js/utils.js"></script>
