@@ -187,7 +187,7 @@ function carregarUsuarios() {
 // OPERAÇÕES DE ESCRITA (POST)
 // ==========================================
 
-// --- AGENDAMENTOS ---
+// --- AGENDAMENTOS E BLOQUEIOS ---
 
 async function salvarAgendamentoOtimista(e) { 
     e.preventDefault(); 
@@ -266,6 +266,81 @@ async function salvarAgendamentoOtimista(e) {
         showSyncIndicator(false); 
     } 
     f.reset();
+}
+
+async function bloquearHorarioAPI(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-bloqueio'); 
+    const originalText = btn.innerText;
+    setLoading(btn, true, originalText);
+
+    const f = e.target;
+    const dataBloq = f.data.value; 
+    const horaBloq = f.hora.value;
+    const duracao = f.duracao.value;
+    const motivo = f.motivo.value;
+    
+    // Admin pode bloquear agenda de outros
+    const profId = (currentUser.nivel === 'admin' && document.getElementById('select-prof-modal')?.value) ? document.getElementById('select-prof-modal').value : currentUser.id_usuario;
+
+    // Atualização Otimista
+    const tempId = 'blk_' + Date.now();
+    const fimMin = parseInt(duracao) || 60;
+    const horaFim = calcularHoraFim(horaBloq, fimMin);
+
+    const novoItem = {
+        id_agendamento: tempId,
+        id_cliente: 'SYSTEM',
+        id_servico: 'BLOQUEIO', // Identificador especial para a UI
+        data_agendamento: dataBloq,
+        hora_inicio: horaBloq,
+        hora_fim: horaFim,
+        status: 'Bloqueado',
+        nome_cliente: motivo || 'Bloqueio', // Exibido como título do card
+        observacoes: motivo,
+        id_profissional: profId
+    };
+
+    agendamentosRaw.push(novoItem);
+    saveToCache('agendamentos', agendamentosRaw);
+    atualizarAgendaVisual();
+    
+    fecharModal('modal-bloqueio');
+
+    try {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'bloquearHorario',
+                data_agendamento: dataBloq,
+                hora_inicio: horaBloq,
+                duracao_minutos: duracao,
+                motivo: motivo,
+                id_profissional: profId
+            })
+        });
+        const data = await res.json();
+
+        if (data.status === 'sucesso' && data.id_agendamento) {
+            const idx = agendamentosRaw.findIndex(a => a.id_agendamento === tempId);
+            if (idx !== -1) {
+                agendamentosRaw[idx].id_agendamento = data.id_agendamento;
+                saveToCache('agendamentos', agendamentosRaw);
+            }
+            mostrarAviso('Horário bloqueado!');
+        } else {
+            throw new Error(data.mensagem || 'Erro ao bloquear');
+        }
+    } catch (err) {
+        console.error(err);
+        agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId);
+        saveToCache('agendamentos', agendamentosRaw);
+        atualizarAgendaVisual();
+        mostrarAviso('Erro ao bloquear horário.');
+    } finally {
+        setLoading(btn, false, originalText);
+        f.reset();
+    }
 }
 
 async function executarMudancaStatusOtimista(id, st, devolver) {
@@ -369,19 +444,17 @@ async function salvarConfigAPI(btn) {
             permite_encaixe: encaixe,
             mensagem_lembrete: msgLembrete,
             mensagens_rapidas: msgsRapidas,
-            horarios_semanais: horariosSemanais // Envia para o backend
+            horarios_semanais: horariosSemanais 
         })}); 
         
-        // Atualiza estado local
         config.abertura = abertura;
         config.fechamento = fechamento;
         config.intervalo_minutos = parseInt(intervalo);
         config.permite_encaixe = encaixe;
         config.mensagem_lembrete = msgLembrete;
-        // config.horarios_semanais já está atualizado via UI reference
         
         saveToCache('config', config);
-        renderizarGrade(); // Re-renderiza a agenda pois o dia atual pode ter mudado
+        renderizarGrade(); 
         mostrarAviso('Configurações salvas!'); 
     } catch(e) { 
         mostrarAviso('Erro ao salvar.'); 
