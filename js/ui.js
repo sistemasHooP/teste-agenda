@@ -587,3 +587,41 @@ function getWhatsappCliente(idAgendamento) {
     }
     return null;
 }
+
+/* --- FUNÇÕES ADICIONADAS PARA ENVIO DE WHATSAPP --- */
+
+function enviarLembrete() {
+    const id = document.getElementById('id-agendamento-ativo').value;
+    const ag = agendamentosCache.find(a => a.id_agendamento === id);
+    if (!ag) return;
+
+    const numero = getWhatsappCliente(id);
+    if (!numero) {
+        mostrarAviso('Cliente sem WhatsApp cadastrado.');
+        return;
+    }
+
+    const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico));
+    const nomeServico = servico ? servico.nome_servico : 'Serviço';
+    
+    // Formata a mensagem usando o template da configuração
+    let msg = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
+    msg = msg.replace('{cliente}', ag.nome_cliente)
+             .replace('{data}', formatarDataBr(ag.data_agendamento))
+             .replace('{hora}', ag.hora_inicio)
+             .replace('{servico}', nomeServico);
+
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function abrirChatDireto() {
+    const id = document.getElementById('id-agendamento-ativo').value;
+    const numero = getWhatsappCliente(id);
+    
+    if(!numero) { 
+        mostrarAviso('Cliente sem WhatsApp cadastrado.'); 
+        return; 
+    }
+    
+    window.open(`https://wa.me/${numero}`, '_blank');
+}
