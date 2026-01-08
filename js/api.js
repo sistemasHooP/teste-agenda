@@ -357,6 +357,8 @@ async function salvarConfigAPI(btn) {
     const encaixe = document.getElementById('cfg-concorrencia').checked; 
     const msgLembrete = document.getElementById('cfg-lembrete-template').value;
     const msgsRapidas = config.mensagens_rapidas;
+    // Captura os horários semanais atualizados que foram modificados em memória (js/ui.js)
+    const horariosSemanais = config.horarios_semanais;
 
     try { 
         await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
@@ -366,17 +368,20 @@ async function salvarConfigAPI(btn) {
             intervalo_minutos: intervalo, 
             permite_encaixe: encaixe,
             mensagem_lembrete: msgLembrete,
-            mensagens_rapidas: msgsRapidas
+            mensagens_rapidas: msgsRapidas,
+            horarios_semanais: horariosSemanais // Envia para o backend
         })}); 
         
+        // Atualiza estado local
         config.abertura = abertura;
         config.fechamento = fechamento;
         config.intervalo_minutos = parseInt(intervalo);
         config.permite_encaixe = encaixe;
         config.mensagem_lembrete = msgLembrete;
+        // config.horarios_semanais já está atualizado via UI reference
         
         saveToCache('config', config);
-        renderizarGrade(); 
+        renderizarGrade(); // Re-renderiza a agenda pois o dia atual pode ter mudado
         mostrarAviso('Configurações salvas!'); 
     } catch(e) { 
         mostrarAviso('Erro ao salvar.'); 
