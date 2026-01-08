@@ -442,6 +442,27 @@
         </div>
     </div>
 
+    <!-- 14. MODAL EDITAR USUÁRIO (NOVO) -->
+    <div id="modal-editar-usuario" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Editar Profissional</h3><button onclick="fecharModal('modal-editar-usuario')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <form id="form-editar-usuario" onsubmit="salvarEdicaoUsuario(event)">
+                <input type="hidden" name="id_usuario" id="edit-id-usuario">
+                <div class="space-y-4">
+                    <input type="text" name="nome" id="edit-nome-usuario" required placeholder="Nome" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <input type="email" name="email" id="edit-email-usuario" required placeholder="Email" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <input type="text" name="senha" id="edit-senha-usuario" placeholder="Nova Senha (opcional)" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <select name="nivel" id="edit-nivel-usuario" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"><option value="padrao">Padrão</option><option value="admin">Admin</option></select>
+                    <div><p class="text-xs font-bold text-slate-500 mb-2">Cor</p><div id="edit-user-color-picker" class="flex justify-between"></div><input type="hidden" name="cor" id="edit-user-color-input"></div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" onclick="excluirUsuarioViaModal()" class="flex-1 py-3 text-red-600 font-bold hover:bg-red-50 rounded-xl btn-anim border border-red-200">Excluir</button>
+                    <button type="submit" id="btn-salvar-edicao-usuario" class="flex-1 py-3 btn-primary font-bold btn-anim">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 12. MODAL DETALHES AGENDAMENTO (NOVO DESIGN) -->
     <div id="modal-detalhes" class="modal-overlay">
         <div class="modal-card">
@@ -563,7 +584,7 @@
         <div class="nav-item active" onclick="switchTab('agenda', this)"><i data-lucide="calendar"></i><span>Agenda</span></div>
         <div class="nav-item admin-only" onclick="switchTab('servicos', this)"><i data-lucide="sparkles"></i><span>Serviços</span></div>
         <div class="nav-item admin-only" onclick="switchTab('pacotes', this)"><i data-lucide="package"></i><span>Pacotes</span></div>
-        <div class="nav-item admin-only" onclick="switchTab('equipa', this)"><i data-lucide="users"></i><span>Equipa</span></div>
+        <div class="nav-item admin-only" onclick="switchTab('equipa', this)"><i data-lucide="users"></i><span>Equipe</span></div>
         <div class="nav-item admin-only" onclick="switchTab('config', this)"><i data-lucide="settings-2"></i><span>Config</span></div>
     </nav>
 
