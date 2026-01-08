@@ -1,7 +1,7 @@
 /* --- CONSTANTES E ESTADO GLOBAL --- */
 const API_URL = 'https://script.google.com/macros/s/AKfycbxgSkDYPhTJerGbFsubJE9b_xuwCM6KnAtWh5gFF3WEIEGFWf-SIHd_iWUH3J4JitWUHA/exec';
 
-// Usamos VAR para garantir que ficam presas ao objeto window (acesso global garantido)
+// VAR garante que ficam acessíveis globalmente entre os ficheiros JS
 var currentUser = null;
 var currentProfId = null;
 var dataAtual = new Date();
@@ -31,11 +31,9 @@ var config = {
 
 /* --- AUTENTICAÇÃO --- */
 
-// Anexar explicitamente ao window
 window.fazerLogin = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-login');
-    // Nota: setLoading é uma função de UI
     if (typeof window.setLoading === 'function') window.setLoading(btn, true, 'Entrar');
     
     const email = document.getElementById('login-email').value;
@@ -73,9 +71,10 @@ window.logout = function() {
 /* --- SINCRONIZAÇÃO DE DADOS (CORE) --- */
 
 window.sincronizarDadosAPI = async function() {
-    const hasData = document.querySelectorAll('.time-slot').length > 0;
     const container = document.getElementById('agenda-timeline');
+    const hasData = document.querySelectorAll('.time-slot').length > 0;
     
+    // Mostra loading inicial se não houver dados na tela
     if(!hasData && agendamentosRaw.length === 0) {
         if(container) container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>';
     } else {
@@ -93,6 +92,7 @@ window.sincronizarDadosAPI = async function() {
             }
         };
         
+        // Carregamento paralelo para rapidez
         const [resConfig, resServicos, resClientes, resPacotes, resAgendamentos, resUsuarios] = await Promise.all([
             fetchSafe('getConfig'),
             fetchSafe('getServicos'),
@@ -102,12 +102,14 @@ window.sincronizarDadosAPI = async function() {
             (currentUser && currentUser.nivel === 'admin') ? fetchSafe('getUsuarios') : Promise.resolve([])
         ]);
         
+        // Atualizar Configurações
         if(resConfig && resConfig.horarios_semanais) {
             config = resConfig;
             saveToCache('config', config);
             if (typeof window.atualizarUIConfig === 'function') window.atualizarUIConfig();
         }
         
+        // Atualizar Caches
         servicosCache = Array.isArray(resServicos) ? resServicos : [];
         saveToCache('servicos', servicosCache);
         
@@ -123,7 +125,7 @@ window.sincronizarDadosAPI = async function() {
         usuariosCache = Array.isArray(resUsuarios) ? resUsuarios : [];
         if(usuariosCache.length > 0) saveToCache('usuarios', usuariosCache);
         
-        // Funções de UI e App
+        // Atualizar Interface (Chamadas seguras para ui.js)
         if (typeof window.atualizarDataEPainel === 'function') window.atualizarDataEPainel();
         if (typeof window.atualizarDatalistServicos === 'function') window.atualizarDatalistServicos();
         if (typeof window.atualizarDatalistClientes === 'function') window.atualizarDatalistClientes();
@@ -152,6 +154,7 @@ window.recarregarAgendaComFiltro = function(silencioso = false) {
     const activeTempId = (modalIdInput && String(modalIdInput.value).startsWith('temp_')) ? modalIdInput.value : null;
     let tempItem = null;
     
+    // Se estivermos a ver um item temporário (acabado de criar), guardamos referência
     if(activeTempId) {
         tempItem = agendamentosRaw.find(a => a.id_agendamento === activeTempId);
     }
@@ -160,6 +163,8 @@ window.recarregarAgendaComFiltro = function(silencioso = false) {
     .then(r => r.json())
     .then(dados => {
         const novosAgendamentos = Array.isArray(dados) ? dados : [];
+        
+        // Lógica para substituir ID temporário pelo real se a sincronização ocorrer com o modal aberto
         if (activeTempId && tempItem) {
             const realItem = novosAgendamentos.find(a => a.data_agendamento === tempItem.data_agendamento && a.hora_inicio === tempItem.hora_inicio && (a.nome_cliente === tempItem.nome_cliente || (a.observacoes && a.observacoes.includes(tempItem.nome_cliente))) );
             if (realItem) {
@@ -169,8 +174,10 @@ window.recarregarAgendaComFiltro = function(silencioso = false) {
                 if (typeof window.abrirModalDetalhes === 'function') window.abrirModalDetalhes(realItem.id_agendamento);
             }
         }
+        
         agendamentosRaw = novosAgendamentos;
         saveToCache('agendamentos', agendamentosRaw);
+        
         if (typeof window.atualizarAgendaVisual === 'function') window.atualizarAgendaVisual();
         if (typeof window.showSyncIndicator === 'function') window.showSyncIndicator(false);
     })
@@ -180,7 +187,7 @@ window.recarregarAgendaComFiltro = function(silencioso = false) {
     });
 };
 
-/* --- FUNÇÕES AUXILIARES DE LEITURA --- */
+/* --- FUNÇÕES AUXILIARES DE LEITURA (PARA UI) --- */
 
 window.carregarServicos = function() { 
     fetch(`${API_URL}?action=getServicos`)
