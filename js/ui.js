@@ -8,16 +8,13 @@ function toggleMenu() {
     if (menu.classList.contains('open')) {
         menu.classList.remove('open');
         overlay.classList.remove('open');
-        // Pequeno delay para display none no overlay
         setTimeout(() => overlay.style.display = 'none', 300);
     } else {
         overlay.style.display = 'block';
-        // Força reflow para transição funcionar
-        void overlay.offsetWidth;
+        void overlay.offsetWidth; // Força reflow
         menu.classList.add('open');
         overlay.classList.add('open');
         
-        // Atualiza info do usuário no menu
         if(currentUser) {
             document.getElementById('menu-user-name').innerText = currentUser.nome;
             document.getElementById('menu-user-email').innerText = currentUser.email;
@@ -31,16 +28,15 @@ function toggleMenu() {
 function switchTab(t, el) { 
     abaAtiva = t; 
     
-    // Atualiza menu lateral (se vier dele)
     document.querySelectorAll('.menu-item').forEach(i=>i.classList.remove('active'));
     if(el) el.classList.add('active');
     
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active')); 
     document.getElementById(`tab-${t}`).classList.add('active'); 
     
-    // Header Title Update
     const titles = {
         'agenda': 'Minha Agenda',
+        'clientes': 'Meus Clientes',
         'servicos': 'Serviços',
         'pacotes': 'Pacotes',
         'equipa': 'Equipe',
@@ -48,22 +44,19 @@ function switchTab(t, el) {
     };
     document.getElementById('header-title').innerText = titles[t] || 'Minha Agenda';
 
-    // FAB Visibility
     const fab = document.getElementById('main-fab');
     if (t === 'config') fab.style.display = 'none';
     else {
         fab.style.display = 'flex';
-        // Remove classes antigas e re-adiciona animação
         fab.classList.remove('btn-anim');
         void fab.offsetWidth; 
         fab.classList.add('btn-anim');
     }
     
-    // Ações Específicas
     if (t === 'pacotes') carregarPacotes(); 
+    if (t === 'clientes') renderizarListaClientes(); // Carrega clientes ao entrar na aba
     if (t === 'config') atualizarUIConfig();
     if (t === 'agenda') {
-        // Recalcula calendário se voltar para agenda
         renderizarCalendarioSemanal();
         atualizarAgendaVisual();
     }
@@ -93,6 +86,7 @@ function switchConfigTab(tab) {
 function acaoFab() { 
     if(abaAtiva==='servicos') abrirModalServico(); 
     else if(abaAtiva==='agenda') abrirModalAgendamento(); 
+    else if(abaAtiva==='clientes') abrirModalCliente(); // Adicionado para a aba clientes
     else if(abaAtiva==='pacotes') abrirModalVenderPacote(); 
     else if(abaAtiva==='equipa') abrirModalUsuario(); 
 }
@@ -107,7 +101,6 @@ function irParaHoje() {
 }
 
 function mudarSemana(direcao) {
-    // Adiciona ou remove 7 dias
     dataAtual.setDate(dataAtual.getDate() + (direcao * 7));
     atualizarDataEPainel();
 }
@@ -119,7 +112,6 @@ function selecionarDiaSemana(diaIso) {
 }
 
 function atualizarDataEPainel() {
-    // Atualiza input hidden ou visual se necessário (mantido para compatibilidade)
     const picker = document.getElementById('data-picker');
     if(picker) picker.value = dataAtual.toISOString().split('T')[0];
     
@@ -134,12 +126,10 @@ function renderizarCalendarioSemanal() {
 
     container.innerHTML = '';
     
-    // Atualiza Label do Mês (Ex: Janeiro 2026)
     const mesAno = dataAtual.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
     if(labelMes) labelMes.innerText = mesAno.charAt(0).toUpperCase() + mesAno.slice(1);
 
-    // Encontrar o Domingo da semana atual
-    const diaSemana = dataAtual.getDay(); // 0 (Dom) a 6 (Sab)
+    const diaSemana = dataAtual.getDay(); 
     const domingoDaSemana = new Date(dataAtual);
     domingoDaSemana.setDate(dataAtual.getDate() - diaSemana);
 
@@ -147,7 +137,6 @@ function renderizarCalendarioSemanal() {
     const selecionadoIso = dataAtual.toISOString().split('T')[0];
     const diasSigla = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
 
-    // Gera os 7 dias
     for (let i = 0; i < 7; i++) {
         const diaLoop = new Date(domingoDaSemana);
         diaLoop.setDate(domingoDaSemana.getDate() + i);
@@ -196,7 +185,6 @@ function renderizarGrade() {
     if(!container) return; 
     container.innerHTML = '';
 
-    // Determinar horário do dia específico
     const diaIndex = dataAtual.getDay(); 
     let horarioDia = null;
     
@@ -338,6 +326,110 @@ function renderizarGrade() {
             slotEl.appendChild(card); 
         }); 
     });
+}
+
+// ==========================================
+// CLIENTES E HISTÓRICO (NOVO)
+// ==========================================
+
+function renderizarListaClientes(filtro = '') {
+    const container = document.getElementById('lista-clientes-tab');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    const termo = filtro.toLowerCase();
+    // Filtra clientes pelo nome, whats ou email
+    const filtrados = clientesCache.filter(c => 
+        c.nome.toLowerCase().includes(termo) || 
+        (c.whatsapp && c.whatsapp.includes(termo)) ||
+        (c.email && c.email.toLowerCase().includes(termo))
+    );
+
+    // Ordena alfabeticamente
+    filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
+
+    if (filtrados.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum cliente encontrado.</div>';
+        return;
+    }
+
+    filtrados.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors';
+        div.onclick = () => abrirModalHistoricoCliente(c.id_cliente);
+        
+        div.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+                    ${c.nome.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                    <h4 class="font-bold text-slate-800">${c.nome}</h4>
+                    <p class="text-xs text-slate-400">${c.whatsapp || 'Sem telefone'}</p>
+                </div>
+            </div>
+            <i data-lucide="chevron-right" class="text-slate-300 w-5 h-5"></i>
+        `;
+        container.appendChild(div);
+    });
+    lucide.createIcons();
+}
+
+function filtrarListaClientes() {
+    const termo = document.getElementById('busca-cliente').value;
+    renderizarListaClientes(termo);
+}
+
+function abrirModalHistoricoCliente(idCliente) {
+    const cliente = clientesCache.find(c => String(c.id_cliente) === String(idCliente));
+    if(!cliente) return;
+
+    document.getElementById('hist-nome-cliente').innerText = cliente.nome;
+    
+    // Busca todo o histórico desse cliente nos dados brutos
+    const historico = agendamentosRaw.filter(a => String(a.id_cliente) === String(idCliente));
+    
+    // Ordena do mais recente para o mais antigo
+    historico.sort((a, b) => {
+        const dataA = new Date(a.data_agendamento + 'T' + a.hora_inicio);
+        const dataB = new Date(b.data_agendamento + 'T' + b.hora_inicio);
+        return dataB - dataA;
+    });
+
+    const container = document.getElementById('lista-historico-conteudo');
+    container.innerHTML = '';
+
+    if (historico.length === 0) {
+        container.innerHTML = '<p class="text-center text-slate-400 py-4 text-sm">Nenhum histórico de atendimentos.</p>';
+    } else {
+        historico.forEach(h => {
+            const servico = servicosCache.find(s => String(s.id_servico) === String(h.id_servico));
+            const nomeServico = servico ? servico.nome_servico : (h.id_servico === 'BLOQUEIO' ? 'Bloqueio' : 'Serviço Removido');
+            
+            let statusCor = 'text-slate-500';
+            if (h.status === 'Confirmado') statusCor = 'text-green-600';
+            else if (h.status === 'Cancelado') statusCor = 'text-red-500';
+            else if (h.status === 'Concluido') statusCor = 'text-blue-600';
+
+            const item = document.createElement('div');
+            item.className = 'flex gap-3 relative pb-4 border-l-2 border-slate-100 ml-2 pl-4 last:border-0';
+            item.innerHTML = `
+                <div class="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-white"></div>
+                <div class="w-full">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-xs font-bold text-slate-400">${formatarDataBr(h.data_agendamento)}</span>
+                        <span class="text-[10px] font-bold uppercase ${statusCor} bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${h.status}</span>
+                    </div>
+                    <p class="font-bold text-slate-700 text-sm leading-tight mb-0.5">${nomeServico}</p>
+                    <p class="text-xs text-slate-400">${h.hora_inicio} - ${h.hora_fim}</p>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    document.getElementById('modal-historico-cliente').classList.add('open');
 }
 
 // ==========================================
@@ -716,11 +808,9 @@ function atualizarUIConfig() {
     document.getElementById('cfg-intervalo').value = config.intervalo_minutos;
     document.getElementById('cfg-concorrencia').checked = config.permite_encaixe;
     
-    // Mensagens
     document.getElementById('cfg-lembrete-template').value = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
     renderizarListaMsgRapidasConfig();
 
-    // Horários Semanais
     renderizarListaHorariosSemanais();
 }
 
@@ -731,17 +821,15 @@ function renderizarListaHorariosSemanais() {
 
     const diasNomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
-    // Inicializa se vazio
     if (!config.horarios_semanais || !Array.isArray(config.horarios_semanais) || config.horarios_semanais.length === 0) {
         config.horarios_semanais = diasNomes.map((_, i) => ({
             dia: i,
-            ativo: i !== 0, // Domingo fechado por padrão
+            ativo: i !== 0, 
             inicio: config.abertura || '08:00',
             fim: config.fechamento || '19:00'
         }));
     }
 
-    // Ordena por dia
     config.horarios_semanais.sort((a, b) => a.dia - b.dia);
 
     config.horarios_semanais.forEach((diaConfig, index) => {
