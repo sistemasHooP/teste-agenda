@@ -1,6 +1,6 @@
 /* --- INICIALIZAÇÃO E CACHE --- */
 
-function iniciarApp() {
+window.iniciarApp = function() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-header').classList.remove('hidden');
     document.getElementById('app-header').classList.add('flex');
@@ -18,17 +18,19 @@ function iniciarApp() {
         document.getElementById('select-profissional-agenda').classList.remove('hidden');
     }
     
-    renderizarColorPicker();
-    renderizarColorPickerEdicao();
-    carregarDoCache();
-    sincronizarDadosAPI();
+    if (typeof window.renderizarColorPicker === 'function') window.renderizarColorPicker();
+    if (typeof window.renderizarColorPickerEdicao === 'function') window.renderizarColorPickerEdicao();
+    window.carregarDoCache();
+    window.sincronizarDadosAPI();
     
     // Polling para atualização automática
     if(pollingInterval) clearInterval(pollingInterval);
-    pollingInterval = setInterval(() => recarregarAgendaComFiltro(true), 15000);
-}
+    pollingInterval = setInterval(() => {
+        if (typeof window.recarregarAgendaComFiltro === 'function') window.recarregarAgendaComFiltro(true);
+    }, 15000);
+};
 
-function carregarDoCache() {
+window.carregarDoCache = function() {
     const cachedServicos = getFromCache('servicos');
     const cachedConfig = getFromCache('config');
     const cachedUsuarios = getFromCache('usuarios');
@@ -36,26 +38,39 @@ function carregarDoCache() {
     const cachedClientes = getFromCache('clientes');
     const cachedPacotes = getFromCache('pacotes');
 
-    if(cachedServicos) { servicosCache = cachedServicos; renderizarListaServicos(); atualizarDatalistServicos(); }
-    if(cachedConfig) { config = cachedConfig; atualizarUIConfig(); }
-    if(cachedUsuarios) { usuariosCache = cachedUsuarios; popularSelectsUsuarios(); renderizarListaUsuarios(); }
+    if(cachedServicos) { 
+        servicosCache = cachedServicos; 
+        if (typeof window.renderizarListaServicos === 'function') window.renderizarListaServicos(); 
+        if (typeof window.atualizarDatalistServicos === 'function') window.atualizarDatalistServicos(); 
+    }
+    if(cachedConfig) { 
+        config = cachedConfig; 
+        if (typeof window.atualizarUIConfig === 'function') window.atualizarUIConfig(); 
+    }
+    if(cachedUsuarios) { 
+        usuariosCache = cachedUsuarios; 
+        if (typeof window.popularSelectsUsuarios === 'function') window.popularSelectsUsuarios(); 
+        if (typeof window.renderizarListaUsuarios === 'function') window.renderizarListaUsuarios(); 
+    }
     if(cachedAgendamentos) { agendamentosRaw = cachedAgendamentos; }
-    if(cachedClientes) { clientesCache = cachedClientes; atualizarDatalistClientes(); }
+    if(cachedClientes) { 
+        clientesCache = cachedClientes; 
+        if (typeof window.atualizarDatalistClientes === 'function') window.atualizarDatalistClientes(); 
+    }
     if(cachedPacotes) { pacotesCache = cachedPacotes; }
 
-    atualizarDataEPainel();
-}
+    if (typeof window.atualizarDataEPainel === 'function') window.atualizarDataEPainel();
+};
 
 /* --- CRUD: SERVIÇOS --- */
 
-async function salvarNovoServico(e) {
+window.salvarNovoServico = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-salvar-servico');
     const originalText = btn.innerText;
-    setLoading(btn, true, originalText);
+    window.setLoading(btn, true, originalText);
     const f = e.target;
     
-    // Upload Imagem
     const fileInput = document.getElementById('input-imagem-servico');
     let imagemUrl = '';
     if (fileInput.files.length > 0) {
@@ -79,18 +94,18 @@ async function salvarNovoServico(e) {
             imagem_url: imagemUrl, 
             online_booking: document.getElementById('check-online-booking').checked 
         })});
-        fecharModal('modal-servico');
+        window.fecharModal('modal-servico');
         f.reset();
-        carregarServicos();
-    } catch(e){ mostrarAviso('Erro'); } 
-    finally { setLoading(btn, false, originalText); }
-}
+        window.carregarServicos();
+    } catch(e){ window.mostrarAviso('Erro'); } 
+    finally { window.setLoading(btn, false, originalText); }
+};
 
-async function salvarEdicaoServico(e) {
+window.salvarEdicaoServico = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-salvar-edicao-servico');
     const originalText = btn.innerText;
-    setLoading(btn, true, originalText);
+    window.setLoading(btn, true, originalText);
     const f = e.target;
     
     const fileInput = document.getElementById('edit-input-imagem-servico');
@@ -117,30 +132,30 @@ async function salvarEdicaoServico(e) {
             online_booking: document.getElementById('edit-check-online-booking').checked, 
             imagem_url: imagemUrl 
         })});
-        fecharModal('modal-editar-servico');
-        carregarServicos();
-    } catch(e) { mostrarAviso('Erro'); } 
-    finally { setLoading(btn, false, originalText); }
-}
+        window.fecharModal('modal-editar-servico');
+        window.carregarServicos();
+    } catch(e) { window.mostrarAviso('Erro'); } 
+    finally { window.setLoading(btn, false, originalText); }
+};
 
-function excluirServicoViaModal(){ 
+window.excluirServicoViaModal = function(){ 
     const id=document.getElementById('edit-id-servico').value; 
-    mostrarConfirmacao('Excluir Serviço', 'Tem certeza?', async () => { 
+    window.mostrarConfirmacao('Excluir Serviço', 'Tem certeza?', async () => { 
         try { 
             await fetch(API_URL, {method:'POST', body:JSON.stringify({action:'deleteServico', id_servico: id})}); 
-            fecharModal('modal-confirmacao'); 
-            fecharModal('modal-editar-servico'); 
-            carregarServicos(); 
-        } catch(e) { mostrarAviso('Erro'); } 
+            window.fecharModal('modal-confirmacao'); 
+            window.fecharModal('modal-editar-servico'); 
+            window.carregarServicos(); 
+        } catch(e) { window.mostrarAviso('Erro'); } 
     }); 
-}
+};
 
 /* --- CRUD: CLIENTES E USUÁRIOS --- */
 
-async function salvarNovoCliente(e) {
+window.salvarNovoCliente = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-salvar-cliente');
-    setLoading(btn, true, 'Salvar');
+    window.setLoading(btn, true, 'Salvar');
     const f = e.target;
     try {
         const res = await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
@@ -152,20 +167,20 @@ async function salvarNovoCliente(e) {
         const data = await res.json();
         if(data.status === 'sucesso') {
             clientesCache.push({ id_cliente: data.id_cliente, nome: data.nome, whatsapp: f.whatsapp.value });
-            atualizarDatalistClientes();
+            window.atualizarDatalistClientes();
             document.getElementById('input-cliente-nome').value = data.nome;
-            fecharModal('modal-cliente');
+            window.fecharModal('modal-cliente');
             f.reset();
-            mostrarAviso('Cliente cadastrado!');
-        } else { mostrarAviso('Erro ao cadastrar.'); }
-    } catch(e) { mostrarAviso('Erro de conexão.'); } 
-    finally { setLoading(btn, false, 'Salvar'); }
-}
+            window.mostrarAviso('Cliente cadastrado!');
+        } else { window.mostrarAviso('Erro ao cadastrar.'); }
+    } catch(e) { window.mostrarAviso('Erro de conexão.'); } 
+    finally { window.setLoading(btn, false, 'Salvar'); }
+};
 
-async function salvarUsuario(e) {
+window.salvarUsuario = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-salvar-usuario');
-    setLoading(btn, true, 'Salvar');
+    window.setLoading(btn, true, 'Salvar');
     const f = e.target;
     try {
         await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
@@ -176,33 +191,33 @@ async function salvarUsuario(e) {
             nivel: f.nivel.value, 
             cor: '#3b82f6' 
         })});
-        fecharModal('modal-usuario');
+        window.fecharModal('modal-usuario');
         f.reset();
-        carregarUsuarios();
-        mostrarAviso('Profissional adicionado!');
-    } catch(e) { mostrarAviso('Erro'); } 
-    finally { setLoading(btn, false, 'Salvar'); }
-}
+        window.carregarUsuarios();
+        window.mostrarAviso('Profissional adicionado!');
+    } catch(e) { window.mostrarAviso('Erro'); } 
+    finally { window.setLoading(btn, false, 'Salvar'); }
+};
 
 /* --- CRUD: PACOTES --- */
 
-async function salvarVendaPacote(e) {
+window.salvarVendaPacote = async function(e) {
     e.preventDefault();
     const btn=document.getElementById('btn-salvar-pacote');
     const originalText = btn.innerText;
-    setLoading(btn, true, originalText);
+    window.setLoading(btn, true, originalText);
     const f=e.target;
     
     if (itensPacoteTemp.length === 0) {
-        mostrarAviso('Adicione serviços.');
-        setLoading(btn, false, originalText);
+        window.mostrarAviso('Adicione serviços.');
+        window.setLoading(btn, false, originalText);
         return;
     }
     
     const cliente = clientesCache.find(c => c.nome === f.nome_cliente.value);
     if(!cliente) {
-        mostrarAviso('Cliente inválido.');
-        setLoading(btn, false, originalText);
+        window.mostrarAviso('Cliente inválido.');
+        window.setLoading(btn, false, originalText);
         return;
     }
     
@@ -215,17 +230,17 @@ async function salvarVendaPacote(e) {
             valor_total: f.valor_total.value, 
             validade: f.validade.value 
         })});
-        fecharModal('modal-vender-pacote');
+        window.fecharModal('modal-vender-pacote');
         f.reset();
-        mostrarAviso('Pacote vendido!');
-        setTimeout(() => { carregarPacotes(); }, 1500);
-    } catch(e) { mostrarAviso('Erro'); } 
-    finally { setLoading(btn, false, originalText); }
-}
+        window.mostrarAviso('Pacote vendido!');
+        setTimeout(() => { window.carregarPacotes(); }, 1500);
+    } catch(e) { window.mostrarAviso('Erro'); } 
+    finally { window.setLoading(btn, false, originalText); }
+};
 
 /* --- CRUD: AGENDAMENTOS E BLOQUEIOS --- */
 
-async function salvarAgendamentoOtimista(e) {
+window.salvarAgendamentoOtimista = async function(e) {
     e.preventDefault();
     const f = e.target;
     const nomeCliente = f.nome_cliente.value;
@@ -236,9 +251,9 @@ async function salvarAgendamentoOtimista(e) {
     const cliente = clientesCache.find(c => c.nome === nomeCliente);
     const servico = servicosCache.find(s => s.nome_servico.toLowerCase() === nomeServico.toLowerCase());
     
-    if(!servico) { mostrarAviso('Serviço não encontrado.'); return; }
+    if(!servico) { window.mostrarAviso('Serviço não encontrado.'); return; }
     
-    fecharModal('modal-agendamento');
+    window.fecharModal('modal-agendamento');
     
     const tempId = 'temp_' + Date.now();
     const profId = (currentUser.nivel === 'admin' && document.getElementById('select-prof-modal').value) ? document.getElementById('select-prof-modal').value : currentUser.id_usuario;
@@ -258,8 +273,8 @@ async function salvarAgendamentoOtimista(e) {
     
     agendamentosRaw.push(novoItem);
     saveToCache('agendamentos', agendamentosRaw);
-    atualizarAgendaVisual();
-    showSyncIndicator(true);
+    window.atualizarAgendaVisual();
+    window.showSyncIndicator(true);
     
     try {
         const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ 
@@ -281,28 +296,28 @@ async function salvarAgendamentoOtimista(e) {
                 agendamentosRaw[idx].id_agendamento = data.id_agendamento;
                 if (data.id_cliente) agendamentosRaw[idx].id_cliente = data.id_cliente;
                 saveToCache('agendamentos', agendamentosRaw);
-                atualizarAgendaVisual();
+                window.atualizarAgendaVisual();
                 
                 const modalIdInput = document.getElementById('id-agendamento-ativo');
                 if(modalIdInput && modalIdInput.value === tempId) {
                     modalIdInput.value = data.id_agendamento;
-                    abrirModalDetalhes(data.id_agendamento);
+                    window.abrirModalDetalhes(data.id_agendamento);
                 }
             }
         }
-        showSyncIndicator(false);
+        window.showSyncIndicator(false);
     } catch (err) {
         console.error("Erro ao salvar", err);
         agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId);
         saveToCache('agendamentos', agendamentosRaw);
-        atualizarAgendaVisual();
-        mostrarAviso('Falha ao salvar agendamento. Tente novamente.');
-        showSyncIndicator(false);
+        window.atualizarAgendaVisual();
+        window.mostrarAviso('Falha ao salvar agendamento. Tente novamente.');
+        window.showSyncIndicator(false);
     }
     f.reset();
-}
+};
 
-async function salvarBloqueio(e) {
+window.salvarBloqueio = async function(e) {
     e.preventDefault();
     const f = e.target;
     const motivo = f.motivo.value;
@@ -310,7 +325,7 @@ async function salvarBloqueio(e) {
     const duracao = f.duracao.value;
     const dataAg = document.getElementById('input-data-modal').value;
     
-    fecharModal('modal-agendamento');
+    window.fecharModal('modal-agendamento');
     
     const tempId = 'temp_blk_' + Date.now();
     const profId = (currentUser.nivel === 'admin' && document.getElementById('select-prof-modal').value) ? document.getElementById('select-prof-modal').value : currentUser.id_usuario;
@@ -329,8 +344,8 @@ async function salvarBloqueio(e) {
     
     agendamentosRaw.push(novoItem);
     saveToCache('agendamentos', agendamentosRaw);
-    atualizarAgendaVisual();
-    showSyncIndicator(true);
+    window.atualizarAgendaVisual();
+    window.showSyncIndicator(true);
     
     try {
         const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ 
@@ -348,16 +363,16 @@ async function salvarBloqueio(e) {
             if (idx !== -1) agendamentosRaw[idx].id_agendamento = data.id_agendamento;
             saveToCache('agendamentos', agendamentosRaw);
         }
-    } catch(e) { mostrarAviso('Erro ao salvar bloqueio'); } 
-    finally { showSyncIndicator(false); }
+    } catch(e) { window.mostrarAviso('Erro ao salvar bloqueio'); } 
+    finally { window.showSyncIndicator(false); }
     f.reset();
-}
+};
 
-async function salvarEdicaoAgendamento(e) {
+window.salvarEdicaoAgendamento = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-salvar-edicao-agenda');
     const originalText = btn.innerText;
-    setLoading(btn, true, originalText);
+    window.setLoading(btn, true, originalText);
     
     const id = document.getElementById('edit-agenda-id').value;
     const novaData = document.getElementById('edit-agenda-data').value;
@@ -370,44 +385,44 @@ async function salvarEdicaoAgendamento(e) {
             data_agendamento: novaData, 
             hora_inicio: novoHorario 
         }) });
-        fecharModal('modal-editar-agendamento');
-        recarregarAgendaComFiltro();
-        mostrarAviso('Agendamento atualizado!');
-    } catch(err) { mostrarAviso('Erro.'); } 
-    finally { setLoading(btn, false, originalText); }
-}
+        window.fecharModal('modal-editar-agendamento');
+        window.recarregarAgendaComFiltro();
+        window.mostrarAviso('Agendamento atualizado!');
+    } catch(err) { window.mostrarAviso('Erro.'); } 
+    finally { window.setLoading(btn, false, originalText); }
+};
 
-function prepararStatus(st, btnEl) { 
+window.prepararStatus = function(st, btnEl) { 
     const id = document.getElementById('id-agendamento-ativo').value; 
     const idPacote = document.getElementById('id-pacote-agendamento-ativo').value; 
     const contentBotao = btnEl ? btnEl.innerHTML : ''; 
     
     if(String(id).startsWith('temp_')) { 
         if(btnEl) { 
-            setLoading(btnEl, true, 'Sincronizando...'); 
-            setTimeout(() => { setLoading(btnEl, false, contentBotao); }, 2000); 
+            window.setLoading(btnEl, true, 'Sincronizando...'); 
+            setTimeout(() => { window.setLoading(btnEl, false, contentBotao); }, 2000); 
         } 
         return; 
     } 
     
     if (st === 'Excluir') { 
-        mostrarConfirmacao('Apagar Agendamento', 'Tem certeza? Saldo será devolvido.', () => executarMudancaStatusOtimista(id, st, true)); 
+        window.mostrarConfirmacao('Apagar Agendamento', 'Tem certeza? Saldo será devolvido.', () => window.executarMudancaStatusOtimista(id, st, true)); 
     } else if (st === 'Cancelado') { 
         if(idPacote) { 
-            mostrarConfirmacao('Cancelar com Pacote', 'Devolver crédito ao cliente?', () => executarMudancaStatusOtimista(id, st, true), () => executarMudancaStatusOtimista(id, st, false), 'Sim, Devolver', 'Não, Debitar' ); 
+            window.mostrarConfirmacao('Cancelar com Pacote', 'Devolver crédito ao cliente?', () => window.executarMudancaStatusOtimista(id, st, true), () => window.executarMudancaStatusOtimista(id, st, false), 'Sim, Devolver', 'Não, Debitar' ); 
         } else { 
-            mostrarConfirmacao('Cancelar Agendamento', 'Tem certeza que deseja cancelar?', () => executarMudancaStatusOtimista(id, st, false)); 
+            window.mostrarConfirmacao('Cancelar Agendamento', 'Tem certeza que deseja cancelar?', () => window.executarMudancaStatusOtimista(id, st, false)); 
         } 
     } else if (st === 'Confirmado') { 
-        executarMudancaStatusOtimista(id, st, false); 
+        window.executarMudancaStatusOtimista(id, st, false); 
     } else { 
-        executarMudancaStatusOtimista(id, st, false); 
+        window.executarMudancaStatusOtimista(id, st, false); 
     } 
-}
+};
 
-async function executarMudancaStatusOtimista(id, st, devolver) { 
-    fecharModal('modal-confirmacao'); 
-    fecharModal('modal-detalhes'); 
+window.executarMudancaStatusOtimista = async function(id, st, devolver) { 
+    window.fecharModal('modal-confirmacao'); 
+    window.fecharModal('modal-detalhes'); 
     
     const index = agendamentosRaw.findIndex(a => a.id_agendamento === id); 
     if(index === -1) return; 
@@ -417,31 +432,31 @@ async function executarMudancaStatusOtimista(id, st, devolver) {
     else { agendamentosRaw[index].status = st; } 
     
     saveToCache('agendamentos', agendamentosRaw); 
-    atualizarAgendaVisual(); 
-    showSyncIndicator(true); 
+    window.atualizarAgendaVisual(); 
+    window.showSyncIndicator(true); 
     
     try { 
         const res = await fetch(API_URL, { method:'POST', body:JSON.stringify({ action:'updateStatusAgendamento', id_agendamento:id, novo_status:st, devolver_credito: devolver }) }); 
         const data = await res.json(); 
         if (data.status !== 'sucesso') { throw new Error(data.mensagem || 'Erro no servidor'); } 
-        if(devolver) setTimeout(carregarPacotes, 1000); 
-        showSyncIndicator(false); 
+        if(devolver) setTimeout(window.carregarPacotes, 1000); 
+        window.showSyncIndicator(false); 
     } catch(e) { 
         console.error("Erro update status", e); 
         if(st === 'Excluir') agendamentosRaw.splice(index, 0, backup); 
         else agendamentosRaw[index] = backup; 
         saveToCache('agendamentos', agendamentosRaw); 
-        atualizarAgendaVisual(); 
-        mostrarAviso('Erro de conexão. Alteração não salva.'); 
-        showSyncIndicator(false); 
+        window.atualizarAgendaVisual(); 
+        window.mostrarAviso('Erro de conexão. Alteração não salva.'); 
+        window.showSyncIndicator(false); 
     } 
-}
+};
 
 /* --- CONFIGURAÇÕES --- */
 
-async function salvarConfigAPI(btn) { 
+window.salvarConfigAPI = async function(btn) { 
     const originalText = btn.innerText; 
-    setLoading(btn, true, originalText); 
+    window.setLoading(btn, true, originalText); 
     const intervalo = document.getElementById('cfg-intervalo').value; 
     const encaixe = document.getElementById('cfg-concorrencia').checked; 
     const msgLembrete = document.getElementById('cfg-lembrete-template').value; 
@@ -463,8 +478,8 @@ async function salvarConfigAPI(btn) {
         config.mensagem_lembrete = msgLembrete; 
         
         saveToCache('config', config); 
-        renderizarGrade(); 
-        mostrarAviso('Configurações salvas!'); 
-    } catch(e) { mostrarAviso('Erro ao salvar.'); } 
-    finally { setLoading(btn, false, originalText); } 
-}
+        window.renderizarGrade(); 
+        window.mostrarAviso('Configurações salvas!'); 
+    } catch(e) { window.mostrarAviso('Erro ao salvar.'); } 
+    finally { window.setLoading(btn, false, originalText); } 
+};
