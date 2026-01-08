@@ -1,3 +1,6 @@
+// Variável local para controlar qual cliente está sendo visualizado no histórico
+let currentHistoricoClienteId = null;
+
 // ==========================================
 // MENU LATERAL (SIDEBAR)
 // ==========================================
@@ -54,7 +57,7 @@ function switchTab(t, el) {
     }
     
     if (t === 'pacotes') carregarPacotes(); 
-    if (t === 'clientes') renderizarListaClientes(); // Carrega clientes ao entrar na aba
+    if (t === 'clientes') renderizarListaClientes();
     if (t === 'config') atualizarUIConfig();
     if (t === 'agenda') {
         renderizarCalendarioSemanal();
@@ -86,7 +89,7 @@ function switchConfigTab(tab) {
 function acaoFab() { 
     if(abaAtiva==='servicos') abrirModalServico(); 
     else if(abaAtiva==='agenda') abrirModalAgendamento(); 
-    else if(abaAtiva==='clientes') abrirModalCliente(); // Adicionado para a aba clientes
+    else if(abaAtiva==='clientes') abrirModalCliente();
     else if(abaAtiva==='pacotes') abrirModalVenderPacote(); 
     else if(abaAtiva==='equipa') abrirModalUsuario(); 
 }
@@ -329,7 +332,7 @@ function renderizarGrade() {
 }
 
 // ==========================================
-// CLIENTES E HISTÓRICO (NOVO)
+// CLIENTES E HISTÓRICO (ATUALIZADO)
 // ==========================================
 
 function renderizarListaClientes(filtro = '') {
@@ -339,14 +342,12 @@ function renderizarListaClientes(filtro = '') {
     container.innerHTML = '';
     
     const termo = filtro.toLowerCase();
-    // Filtra clientes pelo nome, whats ou email
     const filtrados = clientesCache.filter(c => 
         c.nome.toLowerCase().includes(termo) || 
         (c.whatsapp && c.whatsapp.includes(termo)) ||
         (c.email && c.email.toLowerCase().includes(termo))
     );
 
-    // Ordena alfabeticamente
     filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
 
     if (filtrados.length === 0) {
@@ -356,11 +357,10 @@ function renderizarListaClientes(filtro = '') {
 
     filtrados.forEach(c => {
         const div = document.createElement('div');
-        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors';
-        div.onclick = () => abrirModalHistoricoCliente(c.id_cliente);
+        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center transition-colors';
         
         div.innerHTML = `
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-1 cursor-pointer" onclick="abrirModalHistoricoCliente('${c.id_cliente}')">
                 <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
                     ${c.nome.charAt(0).toUpperCase()}
                 </div>
@@ -369,7 +369,9 @@ function renderizarListaClientes(filtro = '') {
                     <p class="text-xs text-slate-400">${c.whatsapp || 'Sem telefone'}</p>
                 </div>
             </div>
-            <i data-lucide="chevron-right" class="text-slate-300 w-5 h-5"></i>
+            <button onclick="abrirModalEditarCliente('${c.id_cliente}')" class="p-2 text-slate-400 hover:text-blue-600 btn-anim">
+                <i data-lucide="edit-2" class="w-5 h-5"></i>
+            </button>
         `;
         container.appendChild(div);
     });
@@ -385,51 +387,76 @@ function abrirModalHistoricoCliente(idCliente) {
     const cliente = clientesCache.find(c => String(c.id_cliente) === String(idCliente));
     if(!cliente) return;
 
+    // Salva o ID globalmente para os filtros funcionarem
+    currentHistoricoClienteId = idCliente;
+
     document.getElementById('hist-nome-cliente').innerText = cliente.nome;
     
-    // Busca todo o histórico desse cliente nos dados brutos
-    const historico = agendamentosRaw.filter(a => String(a.id_cliente) === String(idCliente));
-    
-    // Ordena do mais recente para o mais antigo
+    // Reseta inputs de data
+    document.getElementById('hist-data-inicio').value = '';
+    document.getElementById('hist-data-fim').value = '';
+
+    aplicarFiltroHistorico(); // Carrega lista completa
+    document.getElementById('modal-historico-cliente').classList.add('open');
+}
+
+function aplicarFiltroHistorico() {
+    if (!currentHistoricoClienteId) return;
+
+    const dataInicioVal = document.getElementById('hist-data-inicio').value;
+    const dataFimVal = document.getElementById('hist-data-fim').value;
+
+    let historico = agendamentosRaw.filter(a => String(a.id_cliente) === String(currentHistoricoClienteId));
+
+    if (dataInicioVal) {
+        historico = historico.filter(a => a.data_agendamento >= dataInicioVal);
+    }
+    if (dataFimVal) {
+        historico = historico.filter(a => a.data_agendamento <= dataFimVal);
+    }
+
     historico.sort((a, b) => {
         const dataA = new Date(a.data_agendamento + 'T' + a.hora_inicio);
         const dataB = new Date(b.data_agendamento + 'T' + b.hora_inicio);
         return dataB - dataA;
     });
 
+    renderizarItensHistorico(historico);
+}
+
+function renderizarItensHistorico(lista) {
     const container = document.getElementById('lista-historico-conteudo');
     container.innerHTML = '';
 
-    if (historico.length === 0) {
-        container.innerHTML = '<p class="text-center text-slate-400 py-4 text-sm">Nenhum histórico de atendimentos.</p>';
-    } else {
-        historico.forEach(h => {
-            const servico = servicosCache.find(s => String(s.id_servico) === String(h.id_servico));
-            const nomeServico = servico ? servico.nome_servico : (h.id_servico === 'BLOQUEIO' ? 'Bloqueio' : 'Serviço Removido');
-            
-            let statusCor = 'text-slate-500';
-            if (h.status === 'Confirmado') statusCor = 'text-green-600';
-            else if (h.status === 'Cancelado') statusCor = 'text-red-500';
-            else if (h.status === 'Concluido') statusCor = 'text-blue-600';
-
-            const item = document.createElement('div');
-            item.className = 'flex gap-3 relative pb-4 border-l-2 border-slate-100 ml-2 pl-4 last:border-0';
-            item.innerHTML = `
-                <div class="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-white"></div>
-                <div class="w-full">
-                    <div class="flex justify-between items-start mb-1">
-                        <span class="text-xs font-bold text-slate-400">${formatarDataBr(h.data_agendamento)}</span>
-                        <span class="text-[10px] font-bold uppercase ${statusCor} bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${h.status}</span>
-                    </div>
-                    <p class="font-bold text-slate-700 text-sm leading-tight mb-0.5">${nomeServico}</p>
-                    <p class="text-xs text-slate-400">${h.hora_inicio} - ${h.hora_fim}</p>
-                </div>
-            `;
-            container.appendChild(item);
-        });
+    if (lista.length === 0) {
+        container.innerHTML = '<p class="text-center text-slate-400 py-4 text-sm">Nenhum histórico encontrado no período.</p>';
+        return;
     }
 
-    document.getElementById('modal-historico-cliente').classList.add('open');
+    lista.forEach(h => {
+        const servico = servicosCache.find(s => String(s.id_servico) === String(h.id_servico));
+        const nomeServico = servico ? servico.nome_servico : (h.id_servico === 'BLOQUEIO' ? 'Bloqueio' : 'Serviço Removido');
+        
+        let statusCor = 'text-slate-500';
+        if (h.status === 'Confirmado') statusCor = 'text-green-600';
+        else if (h.status === 'Cancelado') statusCor = 'text-red-500';
+        else if (h.status === 'Concluido') statusCor = 'text-blue-600';
+
+        const item = document.createElement('div');
+        item.className = 'flex gap-3 relative pb-4 border-l-2 border-slate-100 ml-2 pl-4 last:border-0';
+        item.innerHTML = `
+            <div class="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-white"></div>
+            <div class="w-full">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="text-xs font-bold text-slate-400">${formatarDataBr(h.data_agendamento)}</span>
+                    <span class="text-[10px] font-bold uppercase ${statusCor} bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${h.status}</span>
+                </div>
+                <p class="font-bold text-slate-700 text-sm leading-tight mb-0.5">${nomeServico}</p>
+                <p class="text-xs text-slate-400">${h.hora_inicio} - ${h.hora_fim}</p>
+            </div>
+        `;
+        container.appendChild(item);
+    });
 }
 
 // ==========================================
@@ -463,6 +490,18 @@ function abrirModalBloqueio(h) {
 function abrirModalCliente() { document.getElementById('modal-cliente').classList.add('open'); }
 function abrirModalServico() { document.getElementById('modal-servico').classList.add('open'); }
 function abrirModalUsuario() { document.getElementById('modal-usuario').classList.add('open'); }
+
+function abrirModalEditarCliente(idCliente) {
+    const c = clientesCache.find(x => String(x.id_cliente) === String(idCliente));
+    if(!c) return;
+
+    document.getElementById('edit-id-cliente').value = c.id_cliente;
+    document.getElementById('edit-nome-cliente').value = c.nome;
+    document.getElementById('edit-whatsapp-cliente').value = c.whatsapp || '';
+    document.getElementById('edit-email-cliente').value = c.email || '';
+
+    document.getElementById('modal-editar-cliente').classList.add('open');
+}
 
 function abrirModalEditarUsuario(id) {
     const u = usuariosCache.find(x => String(x.id_usuario) === String(id));
