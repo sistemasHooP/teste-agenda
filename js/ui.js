@@ -1,6 +1,7 @@
 /* --- UI HELPERS --- */
 
 function setLoading(btn, l, t) {
+    if (!btn) return;
     btn.disabled = l;
     if (l) {
         const isDarkBg = btn.classList.contains('btn-primary') || btn.classList.contains('bg-blue-600') || btn.classList.contains('bg-red-600') || btn.classList.contains('bg-slate-700');
@@ -12,12 +13,14 @@ function setLoading(btn, l, t) {
 }
 
 function mostrarAviso(msg) {
-    document.getElementById('aviso-msg').innerText = msg;
+    const el = document.getElementById('aviso-msg');
+    if (el) el.innerText = msg;
     document.getElementById('modal-aviso').classList.add('open');
 }
 
 function fecharModal(id) {
-    document.getElementById(id).classList.remove('open');
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('open');
     if(id==='modal-agendamento') document.getElementById('area-pacote-info')?.classList.add('hidden');
 }
 
@@ -41,8 +44,9 @@ function mostrarConfirmacao(t, m, yesCb, noCb, yesTxt='Sim', noTxt='Cancelar') {
 
 function showSyncIndicator(show) {
     // isSyncing está em api.js
-    isSyncing = show;
-    document.getElementById('sync-indicator').style.display = show ? 'flex' : 'none';
+    if(typeof isSyncing !== 'undefined') isSyncing = show;
+    const el = document.getElementById('sync-indicator');
+    if(el) el.style.display = show ? 'flex' : 'none';
 }
 
 /* --- NAVEGAÇÃO E ABAS --- */
@@ -55,11 +59,12 @@ function switchTab(t, el) {
     el.classList.add('active');
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
     document.getElementById(`tab-${t}`).classList.add('active');
-    document.getElementById('main-fab').style.display = t==='config'?'none':'flex';
+    const fab = document.getElementById('main-fab');
+    if(fab) fab.style.display = t==='config'?'none':'flex';
     
     // Funções de carregamento de api.js
-    if (t === 'pacotes') carregarPacotes();
-    if (t === 'config') atualizarUIConfig();
+    if (t === 'pacotes' && typeof carregarPacotes === 'function') carregarPacotes();
+    if (t === 'config' && typeof atualizarUIConfig === 'function') atualizarUIConfig();
 }
 
 function switchConfigTab(tab) {
@@ -87,6 +92,7 @@ function acaoFab() {
 /* --- CONTROLE DE DATA E PAINEL --- */
 
 function mudarSemana(d) {
+    if(typeof dataAtual === 'undefined') return;
     dataAtual.setDate(dataAtual.getDate() + (d * 7));
     atualizarDataEPainel();
 }
@@ -98,8 +104,12 @@ function selecionarDia(dataIso) {
 }
 
 function atualizarDataEPainel() {
-    document.getElementById('data-picker').value = dataAtual.toISOString().split('T')[0];
-    document.getElementById('mes-ano-display').innerText = dataAtual.toLocaleDateString('pt-PT', {month:'long', year:'numeric'});
+    const picker = document.getElementById('data-picker');
+    if(picker) picker.value = dataAtual.toISOString().split('T')[0];
+    
+    const display = document.getElementById('mes-ano-display');
+    if(display) display.innerText = dataAtual.toLocaleDateString('pt-PT', {month:'long', year:'numeric'});
+    
     renderizarBarraSemanal();
     atualizarAgendaVisual();
 }
@@ -108,6 +118,7 @@ function atualizarDataEPainel() {
 
 function renderizarBarraSemanal() {
     const container = document.getElementById('barra-dias-semana');
+    if(!container) return;
     container.innerHTML = '';
     const current = new Date(dataAtual);
     const startOfWeek = new Date(current);
@@ -140,12 +151,15 @@ function renderizarGrade() {
     if(!container) return;
     container.innerHTML = '';
     
+    // config é global (api.js)
+    if(typeof config === 'undefined') return;
+
     const diaSemanaIndex = dataAtual.getDay();
     const horarioDia = (config.horarios_semanais && config.horarios_semanais[diaSemanaIndex]) ? config.horarios_semanais[diaSemanaIndex] : { ativo: true, inicio: '08:00', fim: '19:00' };
     
     if (!horarioDia.ativo) {
         container.innerHTML = `<div class="p-10 text-center text-slate-400 flex flex-col items-center"><i data-lucide="store" class="w-12 h-12 mb-2 text-slate-300"></i><p>Comércio Fechado</p></div>`;
-        lucide.createIcons();
+        if(typeof lucide !== 'undefined') lucide.createIcons();
         return;
     }
     
@@ -167,6 +181,8 @@ function renderizarGrade() {
         container.appendChild(div);
     }
     
+    if(typeof agendamentosCache === 'undefined') return;
+
     const events = agendamentosCache.filter(a => a.data_agendamento === dateIso && a.hora_inicio).map(a => {
         const [h, m] = a.hora_inicio.split(':').map(Number);
         const start = h*60 + m;
@@ -221,11 +237,11 @@ function renderizarGrade() {
         }
         slotEl.appendChild(card);
     });
-    lucide.createIcons();
+    if(typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function atualizarAgendaVisual() {
-    if (!agendamentosRaw) return;
+    if (typeof agendamentosRaw === 'undefined' || !agendamentosRaw) return;
     const filtroId = String(currentProfId);
     agendamentosCache = agendamentosRaw.filter(a => {
         const aId = a.id_profissional ? String(a.id_profissional) : '';
@@ -238,6 +254,7 @@ function atualizarAgendaVisual() {
 /* --- RENDERIZADORES DE LISTAS E CONFIG --- */
 
 function atualizarUIConfig() {
+    if(typeof config === 'undefined') return;
     document.getElementById('cfg-intervalo').value = config.intervalo_minutos;
     document.getElementById('cfg-concorrencia').checked = config.permite_encaixe;
     document.getElementById('cfg-lembrete-template').value = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
@@ -280,7 +297,7 @@ function renderizarListaMsgRapidasConfig() {
         item.innerHTML = ` <span class="text-xs text-slate-600 truncate flex-1 mr-2">${msg}</span> <button onclick="removerMsgRapida(${idx})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button> `;
         div.appendChild(item);
     });
-    lucide.createIcons();
+    if(typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function adicionarMsgRapida() {
@@ -335,7 +352,7 @@ function popularSelectsUsuarios() {
     }); 
 }
 
-function renderizarListaServicos() { const container = document.getElementById('lista-servicos'); container.innerHTML = ''; servicosCache.forEach(s => { const div = document.createElement('div'); div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center'; div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style="background-color: ${getCorServico(s)}">${s.nome_servico.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${s.nome_servico}</h4><p class="text-xs text-slate-500">${s.duracao_minutos} min • R$ ${parseFloat(s.valor_unitario).toFixed(2)}</p></div></div><button onclick="abrirModalEditarServico('${s.id_servico}')" class="text-slate-400 hover:text-blue-600"><i data-lucide="edit-2" class="w-5 h-5"></i></button>`; container.appendChild(div); }); lucide.createIcons(); }
+function renderizarListaServicos() { const container = document.getElementById('lista-servicos'); container.innerHTML = ''; servicosCache.forEach(s => { const div = document.createElement('div'); div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center'; div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style="background-color: ${getCorServico(s)}">${s.nome_servico.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${s.nome_servico}</h4><p class="text-xs text-slate-500">${s.duracao_minutos} min • R$ ${parseFloat(s.valor_unitario).toFixed(2)}</p></div></div><button onclick="abrirModalEditarServico('${s.id_servico}')" class="text-slate-400 hover:text-blue-600"><i data-lucide="edit-2" class="w-5 h-5"></i></button>`; container.appendChild(div); }); if(typeof lucide !== 'undefined') lucide.createIcons(); }
 function renderizarListaPacotes() { const container = document.getElementById('lista-pacotes'); container.innerHTML = ''; if(!pacotesCache || pacotesCache.length === 0) { container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; return; } pacotesCache.forEach(p => { const div = document.createElement('div'); div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100'; div.innerHTML = `<div class="flex justify-between items-start mb-2"><div><h4 class="font-bold text-slate-800">${p.nome_cliente}</h4><p class="text-xs text-slate-500">${p.nome_servico}</p></div><span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">${p.qtd_restante}/${p.qtd_total}</span></div><div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(p.qtd_restante/p.qtd_total)*100}%"></div></div>`; container.appendChild(div); }); }
 function renderizarListaUsuarios() { const container = document.getElementById('lista-usuarios'); container.innerHTML = ''; usuariosCache.forEach(u => { const div = document.createElement('div'); div.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center"; div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">${u.nome.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${u.nome}</h4><p class="text-xs text-slate-400 capitalize">${u.nivel}</p></div></div>`; container.appendChild(div); }); }
 
@@ -344,7 +361,6 @@ function renderizarColorPickerEdicao() { const c=document.getElementById('edit-c
 
 /* --- INTERAÇÕES DE PACOTE E MODAIS --- */
 
-// Variável temporária para criação de pacotes (movida do global para cá pois é UI state)
 let itensPacoteTemp = [];
 
 function mudarProfissionalAgenda() { 
@@ -378,7 +394,7 @@ function atualizarListaVisualPacote() {
         div.innerHTML = ` <div class="flex-1"> <div class="flex justify-between items-center"> <span class="font-medium text-slate-700">${item.qtd}x ${item.nome_servico}</span> <span class="text-xs text-slate-500 font-medium ml-2">= ${subtotalFmt}</span> </div> </div> <button type="button" onclick="removerItemPacote(${index})" class="ml-3 text-red-400 hover:text-red-600 btn-anim"><i data-lucide="trash-2" class="w-4 h-4"></i></button> `; 
         container.appendChild(div); 
     }); 
-    lucide.createIcons(); 
+    if(typeof lucide !== 'undefined') lucide.createIcons(); 
 }
 
 function removerItemPacote(index) { itensPacoteTemp.splice(index, 1); atualizarListaVisualPacote(); atualizarTotalSugerido(); }
@@ -501,7 +517,7 @@ function abrirModalDetalhes(id) {
         } 
     } 
     document.getElementById('modal-detalhes').classList.add('open'); 
-    lucide.createIcons(); 
+    if(typeof lucide !== 'undefined') lucide.createIcons(); 
 }
 
 function resetarBotoesModal() { 
@@ -571,6 +587,7 @@ function abrirSelecaoMsgRapida() {
 }
 
 function getWhatsappCliente(idAgendamento) {
+    if(typeof agendamentosCache === 'undefined') return null;
     const ag = agendamentosCache.find(a => a.id_agendamento === idAgendamento);
     if (!ag) return null;
     
@@ -588,7 +605,7 @@ function getWhatsappCliente(idAgendamento) {
     return null;
 }
 
-/* --- FUNÇÕES ADICIONADAS PARA ENVIO DE WHATSAPP --- */
+/* --- FUNÇÕES DE MENSAGENS (FALTAVAM ESTAS) --- */
 
 function enviarLembrete() {
     const id = document.getElementById('id-agendamento-ativo').value;
