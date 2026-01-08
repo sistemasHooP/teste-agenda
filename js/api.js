@@ -535,6 +535,56 @@ async function salvarUsuario(e) {
     } 
 }
 
+async function salvarEdicaoUsuario(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-edicao-usuario');
+    const originalText = btn.innerText;
+    setLoading(btn, true, originalText);
+
+    const f = e.target;
+    
+    try {
+        await fetch(API_URL, {method:'POST', body:JSON.stringify({
+            action: 'updateUsuario',
+            id_usuario: f.id_usuario.value,
+            nome: f.nome.value,
+            email: f.email.value,
+            senha: f.senha.value,
+            nivel: f.nivel.value,
+            cor: f.cor.value
+        })});
+
+        fecharModal('modal-editar-usuario');
+        carregarUsuarios();
+        mostrarAviso('Profissional atualizado!');
+    } catch(e) {
+        mostrarAviso('Erro ao atualizar.');
+    } finally {
+        setLoading(btn, false, originalText);
+    }
+}
+
+async function excluirUsuarioViaModal() {
+    const id = document.getElementById('edit-id-usuario').value;
+    
+    if(String(id) === String(currentUser.id_usuario)) {
+        mostrarAviso("Você não pode excluir seu próprio usuário.");
+        return;
+    }
+
+    mostrarConfirmacao('Excluir Profissional', 'Tem certeza? Isso não apaga os agendamentos dele.', async () => {
+        try {
+            await fetch(API_URL, {method:'POST', body:JSON.stringify({action:'deleteUsuario', id_usuario: id})});
+            fecharModal('modal-confirmacao');
+            fecharModal('modal-editar-usuario');
+            carregarUsuarios();
+            mostrarAviso('Profissional removido.');
+        } catch(e) {
+            mostrarAviso('Erro ao excluir.');
+        }
+    });
+}
+
 async function salvarNovoCliente(e) { 
     e.preventDefault(); 
     const btn = document.getElementById('btn-salvar-cliente'); 
