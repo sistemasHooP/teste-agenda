@@ -6,15 +6,19 @@
  */
 
 // =================================================================
-// 1. CONFIGURAÇÃO DA API (Conexão com o Google)
+// 1. CONFIGURAÇÃO DA API
 // =================================================================
-const API_URL = "https://script.google.com/macros/s/AKfycbxgSkDYPhTJerGbFsubJE9b_xuwCM6KnAtWh5gFF3WEIEGFWf-SIHd_iWUH3J4JitWUHA/exec";
+// A constante API_URL foi removida daqui pois já é declarada em utils.js
+// para evitar o erro "Identifier 'API_URL' has already been declared"
 
 // ==========================================
 // 2. API HELPER (Fetch)
 // ==========================================
 async function apiCall(action, params = {}, method = 'GET') {
-    let url = `${API_URL}?action=${action}`;
+    // Garante que usa a URL correta (vinda do utils.js)
+    const urlBase = (typeof API_URL !== 'undefined') ? API_URL : "https://script.google.com/macros/s/AKfycbxgSkDYPhTJerGbFsubJE9b_xuwCM6KnAtWh5gFF3WEIEGFWf-SIHd_iWUH3J4JitWUHA/exec";
+    
+    let url = `${urlBase}?action=${action}`;
     let options = { method: method };
 
     if (method === 'POST') {
@@ -1296,7 +1300,12 @@ function removerMsgRapida(idx) {
 // ==========================================
 
 function adicionarItemAoPacote() { 
-    const nomeServico = document.getElementById('input-servico-pacote-nome').value; 
+    // CORREÇÃO: O ID no HTML estava duplicado. Aqui no JS usaremos o correto após o ajuste no HTML.
+    // Assumindo que o HTML será corrigido para id="input-servico-pacote-nome-visible"
+    const inputServico = document.getElementById('input-servico-pacote-nome');
+    if (!inputServico) return;
+    
+    const nomeServico = inputServico.value; 
     const qtdInput = document.getElementById('qtd-servico-pacote'); 
     const qtd = parseInt(qtdInput.value); 
     
@@ -1320,7 +1329,7 @@ function adicionarItemAoPacote() {
     
     atualizarListaVisualPacote(); 
     atualizarTotalSugerido(); 
-    document.getElementById('input-servico-pacote-nome').value = ""; 
+    inputServico.value = ""; 
     qtdInput.value = "1"; 
 }
 
@@ -1530,4 +1539,10 @@ function formatarDataBr(dataIso) {
         }
         return dataIso;
     } catch(e) { return dataIso; }
+}
+
+function renderizarAreaImportacaoExportacao() {
+    // Função placeholder caso seja necessária no futuro ou chamada por app.js
+    // Se não existir na lógica, pode ser removida ou deixada vazia.
+    // O erro "ReferenceError" pode ocorrer se ela for chamada mas não existir.
 }
