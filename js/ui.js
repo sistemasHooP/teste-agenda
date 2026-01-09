@@ -8,8 +8,7 @@
 // =================================================================
 // 1. CONFIGURAÇÃO DA API
 // =================================================================
-// A constante API_URL foi removida daqui pois já é declarada em utils.js
-// para evitar o erro "Identifier 'API_URL' has already been declared"
+// A constante API_URL já é declarada em utils.js
 
 // ==========================================
 // 2. API HELPER (Fetch)
@@ -44,19 +43,9 @@ async function apiCall(action, params = {}, method = 'GET') {
 // ==========================================
 // 3. VARIÁVEIS GLOBAIS E ESTADO
 // ==========================================
+// REMOVIDO: Variáveis duplicadas que já estão em utils.js (usuariosCache, servicosCache, etc.)
+// Apenas variáveis exclusivas da UI ficam aqui:
 let currentHistoricoClienteId = null;
-let usuariosCache = [];
-let servicosCache = [];
-let clientesCache = [];
-let agendamentosCache = [];
-let agendamentosRaw = [];
-let pacotesCache = [];
-let config = {};
-let currentUser = null;
-let currentProfId = '';
-let dataAtual = new Date();
-let abaAtiva = 'agenda';
-let itensPacoteTemp = [];
 
 // ==========================================
 // 4. INICIALIZAÇÃO
@@ -64,13 +53,20 @@ let itensPacoteTemp = [];
 document.addEventListener('DOMContentLoaded', () => {
     if(typeof lucide !== 'undefined') lucide.createIcons();
     
-    // Simulação de Login (Ajuste se tiver sistema real)
-    currentUser = { id_usuario: 'admin', nome: 'Administrador', nivel: 'admin' };
-    if(document.getElementById('menu-user-name')) {
+    // Verifica se há usuário salvo (vinda do utils/storage ou login)
+    // Se não houver login real, usa o mock abaixo para testes, se necessário.
+    if (!currentUser) {
+        // currentUser = { id_usuario: 'admin', nome: 'Administrador', nivel: 'admin' };
+    }
+
+    if(document.getElementById('menu-user-name') && currentUser) {
         document.getElementById('menu-user-name').innerText = currentUser.nome;
     }
     
-    carregarTudo();
+    // Se estiver logado, carrega tudo. Se não, aguarda login.
+    if (currentUser) {
+        carregarTudo();
+    }
 });
 
 async function carregarTudo() {
