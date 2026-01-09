@@ -2,6 +2,16 @@
 let currentHistoricoClienteId = null;
 
 // ==========================================
+// HELPERS (DATA LOCAL)
+// ==========================================
+// Resolve o problema do fuso horário que fazia aparecer o dia seguinte à noite
+function getLocalISODate(date) {
+    const offset = date.getTimezoneOffset();
+    const adjustedDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return adjustedDate.toISOString().split('T')[0];
+}
+
+// ==========================================
 // MENU LATERAL (SIDEBAR)
 // ==========================================
 function toggleMenu() {
@@ -116,7 +126,8 @@ function selecionarDiaSemana(diaIso) {
 
 function atualizarDataEPainel() {
     const picker = document.getElementById('data-picker');
-    if(picker) picker.value = dataAtual.toISOString().split('T')[0];
+    // CORREÇÃO: Usar data local
+    if(picker) picker.value = getLocalISODate(dataAtual);
     
     renderizarCalendarioSemanal();
     atualizarAgendaVisual(); 
@@ -136,15 +147,16 @@ function renderizarCalendarioSemanal() {
     const domingoDaSemana = new Date(dataAtual);
     domingoDaSemana.setDate(dataAtual.getDate() - diaSemana);
 
-    const hojeIso = new Date().toISOString().split('T')[0];
-    const selecionadoIso = dataAtual.toISOString().split('T')[0];
+    // CORREÇÃO: Usar data local para 'hoje'
+    const hojeIso = getLocalISODate(new Date());
+    const selecionadoIso = getLocalISODate(dataAtual);
     const diasSigla = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
 
     for (let i = 0; i < 7; i++) {
         const diaLoop = new Date(domingoDaSemana);
         diaLoop.setDate(domingoDaSemana.getDate() + i);
         
-        const diaIso = diaLoop.toISOString().split('T')[0];
+        const diaIso = getLocalISODate(diaLoop);
         const numeroDia = diaLoop.getDate();
         
         const isSelected = diaIso === selecionadoIso;
@@ -205,8 +217,11 @@ function renderizarGrade() {
         if (!horarioDia.ativo) isDiaFechado = true;
     }
 
+    // CORREÇÃO: Usar data local para comparar com agendamentos
+    const dateIso = getLocalISODate(dataAtual);
+
     if (isDiaFechado) {
-        const temAgendamentos = agendamentosCache.some(a => a.data_agendamento === dataAtual.toISOString().split('T')[0]);
+        const temAgendamentos = agendamentosCache.some(a => a.data_agendamento === dateIso);
         
         if(!temAgendamentos) {
             container.innerHTML = `
@@ -228,7 +243,6 @@ function renderizarGrade() {
     const startMin = hA*60 + mA; 
     const endMin = hF*60 + mF; 
     const interval = parseInt(config.intervalo_minutos) || 60; 
-    const dateIso = dataAtual.toISOString().split('T')[0];
 
     for(let m = startMin; m < endMin; m += interval) { 
         const hSlot = Math.floor(m/60); 
@@ -468,7 +482,7 @@ function fecharModal(id) {
 
 function abrirModalAgendamento(h) { 
     document.getElementById('modal-agendamento').classList.add('open'); 
-    document.getElementById('input-data-modal').value = dataAtual.toISOString().split('T')[0]; 
+    document.getElementById('input-data-modal').value = getLocalISODate(dataAtual); // USANDO DATA LOCAL
     if(h) document.getElementById('input-hora-modal').value = h; 
     
     if(currentUser.nivel==='admin'){ 
@@ -481,7 +495,7 @@ function abrirModalAgendamento(h) {
 
 function abrirModalBloqueio(h) {
     document.getElementById('modal-bloqueio').classList.add('open');
-    document.getElementById('input-data-bloqueio').value = dataAtual.toISOString().split('T')[0];
+    document.getElementById('input-data-bloqueio').value = getLocalISODate(dataAtual); // USANDO DATA LOCAL
     if(h) document.getElementById('input-hora-bloqueio').value = h;
     fecharModal('modal-agendamento');
 }
