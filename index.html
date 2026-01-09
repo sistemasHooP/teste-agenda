@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minha Agenda Pro</title>
+    
+    <!-- Bibliotecas Externas -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Folha de Estilos Externa -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- ================== TELA DE LOGIN ================== -->
+    <div id="login-screen">
+        <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
+            <div class="mb-6 flex justify-center text-blue-600">
+                <i data-lucide="calendar-check" class="w-12 h-12"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-800 mb-2">Bem-vindo</h1>
+            <p class="text-slate-400 text-sm mb-6">Acesse sua agenda profissional</p>
+            
+            <form onsubmit="fazerLogin(event)">
+                <div class="space-y-4 mb-4">
+                    <input type="email" id="login-email" required placeholder="Email" 
+                        class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base">
+                    <input type="password" id="login-senha" required placeholder="Senha" 
+                        class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base">
+                </div>
+                
+                <div class="flex items-center gap-2 mb-6 text-left px-1">
+                    <input type="checkbox" id="login-manter" class="w-4 h-4 text-blue-600 rounded" checked>
+                    <label for="login-manter" class="text-sm text-slate-500 cursor-pointer">Manter conectado</label>
+                </div>
+
+                <button type="submit" id="btn-login" 
+                    class="w-full py-3 btn-primary font-bold shadow-lg shadow-blue-200 btn-anim">
+                    Entrar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Indicador de Sincronização em Background -->
+    <div id="sync-indicator">
+        <div class="spinner spinner-dark w-3 h-3"></div>
+        <span>Sincronizando...</span>
+    </div>
+
+    <!-- ================== CABEÇALHO ================== -->
+    <header id="app-header" class="bg-white px-5 py-4 shadow-sm sticky top-0 z-20 flex justify-between items-center hidden">
+        <div>
+            <h1 class="text-lg font-bold text-slate-800 flex items-center gap-2 tracking-tight">
+                <i data-lucide="calendar-days" class="w-5 h-5 text-blue-600"></i> 
+                <span id="header-title">Minha Agenda</span>
+            </h1>
+            <p class="text-xs text-slate-400" id="user-name-display"></p>
+        </div>
+        <div class="flex items-center gap-3">
+            <select id="select-profissional-agenda" onchange="mudarProfissionalAgenda()" 
+                class="hidden text-xs bg-slate-100 border-none rounded-lg p-1 text-slate-600 outline-none text-base">
+            </select>
+            <button onclick="logout()" class="text-slate-400 hover:text-red-500">
+                <i data-lucide="log-out" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- ================== ABAS PRINCIPAIS ================== -->
+
+    <!-- 1. AGENDA -->
+    <div id="tab-agenda" class="tab-content active">
+        <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm flex justify-between items-center border border-slate-100 sticky top-0 z-10">
+            <button onclick="mudarDia(-1)" class="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-full text-slate-500 btn-anim">
+                <i data-lucide="chevron-left"></i>
+            </button>
+            <div class="text-center">
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1" id="dia-semana-display">Hoje</p>
+                <input type="date" id="data-picker" 
+                    class="text-base font-bold text-slate-800 bg-transparent text-center outline-none cursor-pointer w-full" 
+                    onchange="atualizarDataEPainel()">
+            </div>
+            <button onclick="mudarDia(1)" class="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-full text-slate-500 btn-anim">
+                <i data-lucide="chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[400px]">
+            <div id="agenda-timeline" class="timeline-container pl-2 pr-2 pt-4 pb-10">
+                <div class="p-10 text-center text-slate-400">
+                    <div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div>
+                    <p>A carregar agenda...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. SERVIÇOS -->
+    <div id="tab-servicos" class="tab-content admin-only">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-slate-800">Serviços</h2>
+            <button onclick="abrirModalServico()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Novo</button>
+        </div>
+        <div id="lista-servicos" class="space-y-3 pb-24">
+            <div class="text-center text-slate-400 py-10">Carregando...</div>
+        </div>
+    </div>
+
+    <!-- 3. PACOTES -->
+    <div id="tab-pacotes" class="tab-content admin-only">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-slate-800">Pacotes Ativos</h2>
+            <button onclick="abrirModalVenderPacote()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Vender</button>
+        </div>
+        <div id="lista-pacotes" class="space-y-3 pb-24">
+            <div class="text-center text-slate-400 py-10">Carregando pacotes...</div>
+        </div>
+    </div>
+
+    <!-- 4. EQUIPA -->
+    <div id="tab-equipa" class="tab-content admin-only">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-slate-800">Profissionais</h2>
+            <button onclick="abrirModalUsuario()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Novo</button>
+        </div>
+        <div id="lista-usuarios" class="space-y-3 pb-24">
+            <div class="text-center text-slate-400 py-10">Carregando equipa...</div>
+        </div>
+    </div>
+
+    <!-- 5. CONFIGURAÇÕES -->
+    <div id="tab-config" class="tab-content admin-only">
+        <h2 class="text-xl font-bold text-slate-800 mb-6">Configurações</h2>
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6 mb-24">
+            
+            <!-- ABAS INTERNAS DE CONFIG -->
+            <div class="flex border-b border-slate-100 mb-4">
+                <button onclick="switchConfigTab('geral')" id="btn-cfg-geral" class="flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600">Geral</button>
+                <button onclick="switchConfigTab('msg')" id="btn-cfg-msg" class="flex-1 py-2 text-sm font-bold text-slate-400">Mensagens</button>
+            </div>
+
+            <!-- CFG GERAL -->
+            <div id="cfg-area-geral" class="space-y-6">
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1 font-medium">Abertura</label>
+                    <input type="time" id="cfg-abertura" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-base">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1 font-medium">Fecho</label>
+                    <input type="time" id="cfg-fechamento" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-base">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1 font-medium">Intervalo (min)</label>
+                    <select id="cfg-intervalo" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-base">
+                        <option value="15">15 min</option>
+                        <option value="30">30 min</option>
+                        <option value="60">1 hora</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="flex items-center gap-3">
+                        <input type="checkbox" id="cfg-concorrencia" class="w-5 h-5 text-blue-600 rounded">
+                        <span class="text-slate-700 font-medium">Permitir Encaixes (Simultâneos)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- CFG MENSAGENS -->
+            <div id="cfg-area-msg" class="space-y-6 hidden">
+                <!-- Template Lembrete -->
+                <div>
+                    <label class="block text-sm text-slate-800 font-bold mb-1">Modelo de Lembrete</label>
+                    <p class="text-xs text-slate-400 mb-2">Use: {cliente}, {data}, {hora}, {servico}</p>
+                    <textarea id="cfg-lembrete-template" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-sm text-slate-600"></textarea>
+                </div>
+
+                <!-- Lista Mensagens Rápidas -->
+                <div>
+                    <label class="block text-sm text-slate-800 font-bold mb-2">Mensagens Rápidas</label>
+                    <div id="lista-msg-rapidas" class="space-y-2 mb-3"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="nova-msg-rapida" placeholder="Nova mensagem..." class="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none">
+                        <button onclick="adicionarMsgRapida()" class="bg-blue-100 text-blue-600 p-2 rounded-lg font-bold text-sm">Add</button>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="salvarConfigAPI(this)" class="w-full py-3 btn-primary font-bold shadow-lg shadow-blue-200 btn-anim">Salvar Alterações</button>
+        </div>
+    </div>
+
+    <!-- Botão Flutuante (FAB) -->
+    <div id="main-fab" class="fab btn-anim hidden" onclick="acaoFab()">
+        <i data-lucide="plus"></i>
+    </div>
+
+    <!-- ================== MODAIS ================== -->
+
+    <!-- 1. MODAL CONFIRMAÇÃO (Genérico) -->
+    <div id="modal-confirmacao" class="modal-overlay" style="z-index: 120;">
+        <div class="modal-card max-w-sm">
+            <h3 class="text-lg font-bold text-slate-800 mb-2" id="confirm-titulo">Confirmar</h3>
+            <p class="text-slate-600 mb-6 text-sm" id="confirm-msg">Tem certeza?</p>
+            <div class="flex gap-3">
+                <button id="btn-confirm-no" class="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl btn-anim">Cancelar</button>
+                <button id="btn-confirm-yes" class="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 btn-anim">Sim</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. MODAL AVISO (Genérico) -->
+    <div id="modal-aviso" class="modal-overlay" style="z-index: 130;">
+        <div class="modal-card max-w-sm text-center">
+            <div class="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
+                <i data-lucide="info" class="w-6 h-6"></i>
+            </div>
+            <p class="text-slate-800 font-medium mb-6" id="aviso-msg">Mensagem</p>
+            <button onclick="fecharModal('modal-aviso')" class="w-full py-3 bg-slate-100 text-slate-700 font-bold rounded-xl btn-anim">OK</button>
+        </div>
+    </div>
+    
+    <!-- 3. MODAL SELEÇÃO MSG RÁPIDA -->
+    <div id="modal-selecao-msg" class="modal-overlay" style="z-index: 110;">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800">Enviar Mensagem</h3>
+                <button onclick="fecharModal('modal-selecao-msg')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <div id="lista-selecao-msg" class="space-y-2 max-h-60 overflow-y-auto">
+                <!-- Itens gerados via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MODAL AGENDAMENTO -->
+    <div id="modal-agendamento" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Novo Agendamento</h3>
+                <button onclick="fecharModal('modal-agendamento')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <form id="form-agendamento" onsubmit="salvarAgendamentoOtimista(event)">
+                <div class="space-y-4">
+                    <div id="div-select-prof-modal" class="hidden">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Profissional</label>
+                        <select id="select-prof-modal" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Cliente</label>
+                        <div class="flex gap-2">
+                            <input list="lista-clientes" type="text" id="input-cliente-nome" name="nome_cliente" required placeholder="Buscar cliente..." 
+                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base" 
+                                onchange="verificarPacoteDisponivel()">
+                            <datalist id="lista-clientes"></datalist>
+                            <button type="button" onclick="abrirModalCliente()" class="p-3 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 btn-anim">
+                                <i data-lucide="user-plus" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Serviço</label>
+                        <input list="lista-servicos-datalist" type="text" id="input-servico-nome" name="nome_servico" required placeholder="Buscar serviço..." 
+                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base" 
+                            onchange="verificarPacoteDisponivel()">
+                        <datalist id="lista-servicos-datalist"></datalist>
+                    </div>
+                    <div id="area-pacote-info" class="hidden bg-green-50 p-3 rounded-xl border border-green-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-bold text-green-700 uppercase">Pacote Disponível</p>
+                            <p class="text-sm text-green-800">Restam <span id="pacote-saldo">0</span> sessões</p>
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="check-usar-pacote" class="w-5 h-5 text-green-600 rounded focus:ring-green-500" checked>
+                            <span class="text-sm font-bold text-green-700">Usar</span>
+                        </label>
+                        <input type="hidden" id="id-pacote-selecionado">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Data</label><input type="date" id="input-data-modal" name="data_agendamento" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Horário</label><input type="time" id="input-hora-modal" name="hora_inicio" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                    </div>
+                </div>
+                <button type="submit" id="btn-salvar-agenda" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Confirmar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. MODAL EDITAR AGENDAMENTO -->
+    <div id="modal-editar-agendamento" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Editar Horário</h3>
+                <button onclick="fecharModal('modal-editar-agendamento')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <form id="form-editar-agendamento" onsubmit="salvarEdicaoAgendamento(event)">
+                <input type="hidden" id="edit-agenda-id">
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase mb-1">Cliente</p>
+                        <p id="edit-agenda-cliente" class="text-lg font-bold text-slate-800"></p>
+                        <p id="edit-agenda-servico" class="text-sm text-slate-500"></p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Nova Data</label><input type="date" id="edit-agenda-data" name="nova_data" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Novo Horário</label><input type="time" id="edit-agenda-hora" name="novo_horario" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                    </div>
+                </div>
+                <button type="submit" id="btn-salvar-edicao-agenda" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Atualizar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 6. MODAL VENDER PACOTE -->
+    <div id="modal-vender-pacote" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Vender Pacote</h3>
+                <button onclick="fecharModal('modal-vender-pacote')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <form id="form-pacote" onsubmit="salvarVendaPacote(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Cliente</label>
+                        <input list="lista-clientes" name="nome_cliente" required placeholder="Buscar cliente..." class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Adicionar Itens</label>
+                        <div class="flex gap-2 mb-2">
+                            <input list="lista-servicos-datalist" type="text" id="input-servico-pacote-nome" placeholder="Buscar serviço..." class="flex-1 p-2 bg-white border rounded-lg text-sm outline-none text-base">
+                            <input type="number" id="qtd-servico-pacote" value="1" min="1" class="w-16 p-2 bg-white border rounded-lg text-sm text-center outline-none text-base">
+                            <button type="button" onclick="adicionarItemAoPacote()" class="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 btn-anim"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                        </div>
+                        <div id="lista-itens-pacote" class="space-y-1 mb-2 max-h-40 overflow-y-auto">
+                            <p class="text-xs text-slate-400 text-center py-2">Nenhum item adicionado.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Validade</label><input type="date" name="validade" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Valor Total</label><input type="number" step="0.01" id="valor-total-pacote" name="valor_total" required placeholder="0,00" class="w-full p-3 bg-slate-50 border rounded-xl outline-none font-bold text-slate-700 text-lg text-base"></div>
+                    </div>
+                </div>
+                <button type="submit" id="btn-salvar-pacote" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Confirmar Venda</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 7. MODAL CLIENTE -->
+    <div id="modal-cliente" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Cadastrar Cliente</h3><button onclick="fecharModal('modal-cliente')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <form id="form-cliente" onsubmit="salvarNovoCliente(event)">
+                <div class="space-y-4">
+                    <input type="text" name="nome" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="Nome Completo">
+                    <input type="tel" name="whatsapp" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="WhatsApp">
+                    <input type="email" name="email" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="Email">
+                </div>
+                <button type="submit" id="btn-salvar-cliente" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Salvar e Usar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 8. MODAL SERVICO (CRIAR) -->
+    <div id="modal-servico" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Novo Serviço</h3><button onclick="fecharModal('modal-servico')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <form id="form-servico" onsubmit="salvarNovoServico(event)">
+                <div class="space-y-4">
+                    <input type="text" name="nome_servico" required placeholder="Nome do Serviço" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" step="0.01" name="valor_unitario" placeholder="Preço" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                        <input type="number" name="duracao_minutos" placeholder="Minutos" required value="60" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    </div>
+                    <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Imagem</label><input type="file" id="input-imagem-servico" accept="image/*" class="w-full text-sm"></div>
+                    <div><label class="flex items-center gap-3 p-2 bg-slate-50 rounded-lg cursor-pointer"><input type="checkbox" id="check-online-booking" class="w-5 h-5 text-blue-600 rounded"><span class="text-sm font-bold text-slate-700">Online</span></label></div>
+                    <div><p class="text-xs font-bold text-slate-500 mb-2">Cor</p><div id="color-picker-container" class="flex justify-between"></div><input type="hidden" name="cor_hex" id="input-cor-selecionada" value="#3b82f6"></div>
+                </div>
+                <button type="submit" id="btn-salvar-servico" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 9. MODAL SERVICO (EDITAR) -->
+    <div id="modal-editar-servico" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Editar Serviço</h3><button onclick="fecharModal('modal-editar-servico')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <form id="form-editar-servico" onsubmit="salvarEdicaoServico(event)">
+                <input type="hidden" name="id_servico" id="edit-id-servico">
+                <div class="space-y-4">
+                    <input type="text" name="nome_servico" id="edit-nome-servico" required placeholder="Nome do Serviço" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <div class="grid grid-cols-2 gap-3"><input type="number" step="0.01" name="valor_unitario" id="edit-valor-servico" placeholder="Preço" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"><input type="number" name="duracao_minutos" id="edit-duracao-servico" placeholder="Minutos" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                    <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nova Imagem</label><input type="file" id="edit-input-imagem-servico" accept="image/*" class="w-full text-sm"></div>
+                    <div><label class="flex items-center gap-3 p-2 bg-slate-50 rounded-lg cursor-pointer"><input type="checkbox" id="edit-check-online-booking" class="w-5 h-5 text-blue-600 rounded"><span class="text-sm font-bold text-slate-700">Online</span></label></div>
+                    <div><p class="text-xs font-bold text-slate-500 mb-2">Cor</p><div id="edit-color-picker-container" class="flex justify-between"></div><input type="hidden" name="cor_hex" id="edit-input-cor-selecionada"></div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" onclick="excluirServicoViaModal()" class="flex-1 py-3 text-red-600 font-bold hover:bg-red-50 rounded-xl btn-anim border border-red-200">Excluir</button>
+                    <button type="submit" id="btn-salvar-edicao-servico" class="flex-1 py-3 btn-primary font-bold btn-anim">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 10. MODAL DETALHES PACOTE -->
+    <div id="modal-detalhes-pacote" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold text-slate-800">Detalhes do Pacote</h3><button onclick="fecharModal('modal-detalhes-pacote')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <div class="modal-tabs"><div class="modal-tab active" onclick="switchModalTab('saldos')">Saldos</div><div class="modal-tab" onclick="switchModalTab('historico')">Histórico</div></div>
+            <div id="tab-modal-saldos" class="modal-tab-content active space-y-3 max-h-60 overflow-y-auto"></div>
+            <div id="tab-modal-historico" class="modal-tab-content space-y-2 max-h-60 overflow-y-auto"><p class="text-center text-slate-400 text-sm">Carregando...</p></div>
+        </div>
+    </div>
+
+    <!-- 11. MODAL NOVO USUÁRIO -->
+    <div id="modal-usuario" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Novo Profissional</h3><button onclick="fecharModal('modal-usuario')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <form id="form-usuario" onsubmit="salvarUsuario(event)">
+                <div class="space-y-4">
+                    <input type="text" name="nome" required placeholder="Nome" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <input type="email" name="email" required placeholder="Email" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <input type="text" name="senha" required placeholder="Senha" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    <select name="nivel" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"><option value="padrao">Padrão</option><option value="admin">Admin</option></select>
+                </div>
+                <button type="submit" id="btn-salvar-usuario" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 12. MODAL DETALHES AGENDAMENTO (NOVO DESIGN) -->
+    <div id="modal-detalhes" class="modal-overlay">
+        <div class="modal-card">
+            <!-- Cabeçalho com Nome e Status -->
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 id="detalhe-cliente" class="text-2xl font-bold text-slate-800 leading-tight">Cliente</h3>
+                    <p id="detalhe-servico" class="text-sm text-slate-500 font-medium mt-1">Serviço</p>
+                </div>
+                <div onclick="fecharModal('modal-detalhes')" class="p-2 -mr-2 text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Card de Info -->
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-6 flex justify-between items-center">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                        <span id="detalhe-data" class="font-bold text-slate-700">Data</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4 text-slate-400"></i>
+                        <span id="detalhe-hora" class="font-bold text-slate-700">Hora</span>
+                    </div>
+                </div>
+                <div id="detalhe-status-badge" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold uppercase">
+                    Agendado
+                </div>
+            </div>
+
+            <!-- WhatsApp Actions (Fila do Meio) -->
+            <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Comunicação</h4>
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="enviarLembrete()" class="whatsapp-btn btn-anim">
+                    <i data-lucide="bell-ring"></i>
+                    <span>Lembrete</span>
+                </button>
+                <button onclick="abrirSelecaoMsgRapida()" class="whatsapp-btn btn-anim">
+                    <i data-lucide="message-square"></i>
+                    <span>Rápida</span>
+                </button>
+                <button onclick="abrirChatDireto()" class="whatsapp-btn btn-anim">
+                    <i data-lucide="message-circle"></i>
+                    <span>Conversar</span>
+                </button>
+            </div>
+
+            <!-- Ações Administrativas (Rodapé) -->
+            <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Ações</h4>
+            <div class="space-y-3">
+                <button id="btn-confirmar" onclick="prepararStatus('Confirmado', this)" class="w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-100 flex items-center justify-center gap-2 btn-anim">
+                    <i data-lucide="thumbs-up" class="w-4 h-4"></i> Confirmar Presença
+                </button>
+                <button id="btn-concluir" onclick="prepararStatus('Concluido', this)" class="w-full p-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm flex items-center justify-center gap-2 btn-anim">
+                    <i data-lucide="check" class="w-4 h-4"></i> Marcar como Realizado
+                </button>
+                
+                <div class="grid grid-cols-2 gap-2 pt-2">
+                    <button id="btn-editar-horario" onclick="abrirModalEditarAgendamento()" class="p-3 bg-slate-50 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-100 btn-anim flex flex-col items-center gap-1">
+                        <i data-lucide="clock" class="w-4 h-4"></i> Editar
+                    </button>
+                    <button id="btn-cancelar" onclick="prepararStatus('Cancelado', this)" class="p-3 bg-red-50 text-red-600 font-bold rounded-xl text-xs hover:bg-red-100 btn-anim flex flex-col items-center gap-1">
+                        <i data-lucide="x-circle" class="w-4 h-4"></i> Cancelar
+                    </button>
+                </div>
+                 <!-- Botão Excluir escondido (visível apenas se cancelado) -->
+                <button id="btn-excluir" onclick="prepararStatus('Excluir', this)" class="hidden w-full p-3 text-red-400 text-xs font-bold mt-2">Apagar Permanentemente</button>
+            </div>
+
+            <input type="hidden" id="id-agendamento-ativo">
+            <input type="hidden" id="id-pacote-agendamento-ativo">
+        </div>
+    </div>
+
+    <!-- NAVBAR INFERIOR -->
+    <nav id="bottom-nav" class="bottom-nav hidden">
+        <div class="nav-item active" onclick="switchTab('agenda', this)"><i data-lucide="calendar"></i><span>Agenda</span></div>
+        <div class="nav-item admin-only" onclick="switchTab('servicos', this)"><i data-lucide="sparkles"></i><span>Serviços</span></div>
+        <div class="nav-item admin-only" onclick="switchTab('pacotes', this)"><i data-lucide="package"></i><span>Pacotes</span></div>
+        <div class="nav-item admin-only" onclick="switchTab('equipa', this)"><i data-lucide="users"></i><span>Equipa</span></div>
+        <div class="nav-item admin-only" onclick="switchTab('config', this)"><i data-lucide="settings-2"></i><span>Config</span></div>
+    </nav>
+
+    <!-- SCRIPTS -->
+    <script src="app.js"></script>
+</body>
+</html>
