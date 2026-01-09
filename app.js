@@ -13,7 +13,7 @@ let clientesCache = [];
 let pacotesCache = [];
 let usuariosCache = [];
 let itensPacoteTemp = [];
-let pacoteSelecionado = null; // Armazena o pacote aberto no modal
+let pacoteSelecionado = null; // Armazena o pacote aberto no modal (com histórico)
 let abaAtiva = 'agenda';
 let config = { 
     abertura: '08:00', 
@@ -590,6 +590,7 @@ async function salvarAgendamentoOtimista(e) {
         id_pacote_usado: document.getElementById('check-usar-pacote').checked ? document.getElementById('id-pacote-selecionado').value : '' 
     };
     
+    // Atualização Otimista do Saldo do Pacote
     const usarPacote = document.getElementById('check-usar-pacote').checked;
     const idPacote = document.getElementById('id-pacote-selecionado').value;
     if (usarPacote && idPacote) {
@@ -632,6 +633,7 @@ async function salvarAgendamentoOtimista(e) {
         agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId); 
         saveToCache('agendamentos', agendamentosRaw); 
         
+        // Rollback do Saldo do Pacote em caso de erro
         if (usarPacote && idPacote) {
             const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
             if (pIndex > -1) {
@@ -1063,7 +1065,7 @@ function renderizarListaPacotes() {
     });
 
     const chaves = Object.keys(grupos);
-    if (chaves.length === 0) { 
+    if(chaves.length === 0) { 
         container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; 
         return; 
     } 
@@ -1100,8 +1102,17 @@ function abrirDetalhesPacote(idTransacao) {
     
     if (itens.length === 0) return;
 
-    // Guardar para o relatório
-    pacoteSelecionado = { id: idTransacao, itens: itens, info: itens[0] };
+    // Collect IDs for history filtering
+    const idsPacotes = itens.map(i => String(i.id_pacote));
+
+    // Get History from global agendamentosCache
+    const historico = agendamentosCache.filter(ag => {
+        const idUsado = String(ag.id_pacote_usado || ag.id_pacote || '');
+        return idsPacotes.includes(idUsado);
+    });
+
+    // Guardar para o relatório (INCLUDING HISTORY)
+    pacoteSelecionado = { id: idTransacao, itens: itens, info: itens[0], historico: historico };
 
     // Preencher Cabeçalho
     document.getElementById('pacote-info-id').innerText = '#' + (itens[0].id_transacao ? itens[0].id_transacao.slice(-6) : 'N/A');
@@ -1110,9 +1121,7 @@ function abrirDetalhesPacote(idTransacao) {
 
     // Renderizar Saldos
     divSaldos.innerHTML = '';
-    const idsPacotes = [];
     itens.forEach(item => {
-        idsPacotes.push(String(item.id_pacote));
         const percent = (item.qtd_restante / item.qtd_total) * 100;
         divSaldos.innerHTML += `
             <div class="mb-2">
@@ -1126,13 +1135,8 @@ function abrirDetalhesPacote(idTransacao) {
             </div>`;
     });
 
-    // Renderizar Histórico
+    // Renderizar Histórico (UI Display)
     divHist.innerHTML = '';
-    const historico = agendamentosCache.filter(ag => {
-        const idUsado = String(ag.id_pacote_usado || ag.id_pacote || '');
-        return idsPacotes.includes(idUsado);
-    });
-
     if (historico.length === 0) {
         divHist.innerHTML = '<p class="text-center text-slate-400 text-sm py-4">Nenhum uso registrado.</p>';
     } else {
@@ -1161,6 +1165,7 @@ function enviarRelatorioPacote() {
     if (!pacoteSelecionado) return;
     
     const info = pacoteSelecionado.info;
+    const historico = pacoteSelecionado.historico || [];
     const cliente = clientesCache.find(c => String(c.id_cliente) === String(info.id_cliente));
     
     if (!cliente || !cliente.whatsapp) {
@@ -1172,13 +1177,33 @@ function enviarRelatorioPacote() {
     if (!nums.startsWith('55') && (nums.length === 10 || nums.length === 11)) nums = '55' + nums;
 
     let texto = `*Relatório de Pacote*\n`;
-    texto += `Cliente: ${info.nome_cliente}\n`;
-    texto += `Compra: ${formatarDataBr(info.data_compra)}\n\n`;
+    texto += `👤 Cliente: ${info.nome_cliente}\n`;
+    texto += `📅 Compra: ${formatarDataBr(info.data_compra)}\n\n`;
     
-    texto += `*Saldos Atuais:*\n`;
+    texto += `*📊 Saldos Atuais:*\n`;
     pacoteSelecionado.itens.forEach(item => {
         texto += `- ${item.nome_servico}: ${item.qtd_restante} de ${item.qtd_total}\n`;
     });
+
+    texto += `\n*📝 Serviços Utilizados:*\n`;
+    if (historico.length === 0) {
+        texto += `_Nenhum serviço utilizado ainda._\n`;
+    } else {
+        const histSorted = [...historico].sort((a, b) => {
+             return (b.data_agendamento + b.hora_inicio).localeCompare(a.data_agendamento + a.hora_inicio);
+        });
+
+        histSorted.forEach(h => {
+            const servico = servicosCache.find(s => String(s.id_servico) === String(h.id_servico));
+            const nomeSvc = servico ? servico.nome_servico : 'Serviço';
+            const statusStr = h.status === 'Concluido' ? '✅' : (h.status === 'Cancelado' ? '❌' : '📅');
+            texto += `${statusStr} ${formatarDataBr(h.data_agendamento)} - ${nomeSvc}\n`;
+        });
+    }
+
+    const agora = new Date();
+    const dataHoraGeracao = agora.toLocaleString('pt-BR');
+    texto += `\n_Gerado em: ${dataHoraGeracao}_`;
 
     window.open(`https://wa.me/${nums}?text=${encodeURIComponent(texto)}`, '_blank');
 }
