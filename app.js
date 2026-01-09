@@ -5,7 +5,7 @@ const CACHE_KEY_PREFIX = 'minhaAgenda_';
 
 let currentUser = null;
 let currentProfId = null;
-let dataAtual = new Date();
+let dataAtual = new Date(); // Data selecionada (foco)
 let servicosCache = [], agendamentosCache = [], clientesCache = [], pacotesCache = [], usuariosCache = [];
 let itensPacoteTemp = [];
 let abaAtiva = 'agenda';
@@ -54,15 +54,69 @@ function switchConfigTab(tab) {
 
 function acaoFab() { if(abaAtiva==='servicos') abrirModalServico(); else if(abaAtiva==='agenda') abrirModalAgendamento(); else if(abaAtiva==='pacotes') abrirModalVenderPacote(); else if(abaAtiva==='equipa') abrirModalUsuario(); }
 
-function mudarDia(d) { 
-    dataAtual.setDate(dataAtual.getDate()+d); 
-    atualizarDataEPainel(); 
+// --- LÓGICA DE CALENDÁRIO SEMANAL ---
+
+function mudarSemana(direcao) {
+    // Avança ou recua 7 dias na data selecionada
+    dataAtual.setDate(dataAtual.getDate() + (direcao * 7));
+    atualizarDataEPainel();
+}
+
+function irParaHoje() {
+    dataAtual = new Date();
+    atualizarDataEPainel();
+}
+
+function selecionarDia(dataIso) {
+    const parts = dataIso.split('-');
+    // Mês em JS começa em 0
+    dataAtual = new Date(parts[0], parts[1] - 1, parts[2]);
+    atualizarDataEPainel();
 }
 
 function atualizarDataEPainel() {
-    document.getElementById('data-picker').value = dataAtual.toISOString().split('T')[0]; 
-    document.getElementById('dia-semana-display').innerText = dataAtual.toLocaleDateString('pt-PT', {weekday:'long', day:'numeric', month:'long'});
-    atualizarAgendaVisual(); 
+    // Atualiza Título do Mês (Ex: Janeiro 2024)
+    const options = { month: 'long', year: 'numeric' };
+    const title = dataAtual.toLocaleDateString('pt-PT', options);
+    const titleEl = document.getElementById('current-month-year');
+    if(titleEl) titleEl.innerText = title.charAt(0).toUpperCase() + title.slice(1);
+
+    renderizarSemana();
+    atualizarAgendaVisual();
+}
+
+function renderizarSemana() {
+    const strip = document.getElementById('week-strip');
+    if(!strip) return;
+    
+    strip.innerHTML = '';
+
+    // Calcular o Domingo da semana atual da 'dataAtual'
+    const startOfWeek = new Date(dataAtual);
+    const day = startOfWeek.getDay(); // 0 (Dom) a 6 (Sáb)
+    const diff = startOfWeek.getDate() - day;
+    startOfWeek.setDate(diff); // Define para o domingo
+
+    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+    for (let i = 0; i < 7; i++) {
+        const loopDate = new Date(startOfWeek);
+        loopDate.setDate(startOfWeek.getDate() + i);
+        
+        const isoDate = loopDate.toISOString().split('T')[0];
+        const isSelected = loopDate.toDateString() === dataAtual.toDateString();
+        
+        const div = document.createElement('div');
+        div.className = `day-column ${isSelected ? 'selected' : ''}`;
+        div.onclick = () => selecionarDia(isoDate);
+        
+        div.innerHTML = `
+            <span class="day-name">${diasSemana[i]}</span>
+            <span class="day-number">${loopDate.getDate()}</span>
+        `;
+        
+        strip.appendChild(div);
+    }
 }
 
 function renderizarColorPicker() { const c=document.getElementById('color-picker-container'); c.innerHTML=''; PALETA_CORES.forEach((cor,i)=>{const d=document.createElement('div');d.className=`color-option ${i===4?'selected':''}`;d.style.backgroundColor=cor;d.onclick=()=>{document.querySelectorAll('.color-option').forEach(el=>el.classList.remove('selected'));d.classList.add('selected');document.getElementById('input-cor-selecionada').value=cor};c.appendChild(d)})}
@@ -81,11 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('minhaAgendaUser') || sessionStorage.getItem('minhaAgendaUser');
     if(savedUser) { currentUser = JSON.parse(savedUser); iniciarApp(); }
     
-    document.getElementById('data-picker').addEventListener('change', (e) => { 
-        const p=e.target.value.split('-'); 
-        dataAtual=new Date(p[0],p[1]-1,p[2]); 
-        atualizarDataEPainel(); 
-    });
+    // Listener de data-picker removido pois o elemento não existe mais
 
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
