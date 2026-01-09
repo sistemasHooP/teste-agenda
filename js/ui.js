@@ -2,10 +2,123 @@
  * js/ui.js
  * Lógica de Interface do Usuário para o Sistema de Agendamento.
  * Contém funções globais para manipulação de modais, abas, renderização de agenda e listas.
+ * * MODO: Headless (Frontend no GitHub + Backend no Google Apps Script)
  */
 
-// Variável local para controlar qual cliente está sendo visualizado no histórico
+// =================================================================
+// 1. CONFIGURAÇÃO DA API (Conexão com o Google)
+// =================================================================
+const API_URL = "https://script.google.com/macros/s/AKfycbxgSkDYPhTJerGbFsubJE9b_xuwCM6KnAtWh5gFF3WEIEGFWf-SIHd_iWUH3J4JitWUHA/exec";
+
+// ==========================================
+// 2. API HELPER (Fetch)
+// ==========================================
+async function apiCall(action, params = {}, method = 'GET') {
+    let url = `${API_URL}?action=${action}`;
+    let options = { method: method };
+
+    if (method === 'POST') {
+        // Envia como text/plain para evitar o bloqueio de CORS do Google (Preflight)
+        options.body = JSON.stringify({ action, ...params });
+        options.headers = { "Content-Type": "text/plain;charset=utf-8" };
+    } else {
+        const query = new URLSearchParams(params).toString();
+        if(query) url += `&${query}`;
+    }
+
+    try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(`Erro API [${action}]:`, error);
+        mostrarAviso("Erro de conexão. Verifique sua internet.");
+        throw error;
+    }
+}
+
+// ==========================================
+// 3. VARIÁVEIS GLOBAIS E ESTADO
+// ==========================================
 let currentHistoricoClienteId = null;
+let usuariosCache = [];
+let servicosCache = [];
+let clientesCache = [];
+let agendamentosCache = [];
+let agendamentosRaw = [];
+let pacotesCache = [];
+let config = {};
+let currentUser = null;
+let currentProfId = '';
+let dataAtual = new Date();
+let abaAtiva = 'agenda';
+let itensPacoteTemp = [];
+
+// ==========================================
+// 4. INICIALIZAÇÃO
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    if(typeof lucide !== 'undefined') lucide.createIcons();
+    
+    // Simulação de Login (Ajuste se tiver sistema real)
+    currentUser = { id_usuario: 'admin', nome: 'Administrador', nivel: 'admin' };
+    if(document.getElementById('menu-user-name')) {
+        document.getElementById('menu-user-name').innerText = currentUser.nome;
+    }
+    
+    carregarTudo();
+});
+
+async function carregarTudo() {
+    showSyncIndicator(true);
+    try {
+        // Carregamento paralelo
+        const [servicos, clientes, usuarios, configuracao] = await Promise.all([
+            apiCall('getServicos'),
+            apiCall('getClientes'),
+            apiCall('getUsuarios'),
+            apiCall('getConfig')
+        ]);
+
+        servicosCache = servicos || [];
+        renderizarListaServicos();
+        atualizarDatalistServicos();
+
+        clientesCache = clientes || [];
+        renderizarListaClientes();
+        atualizarDatalistClientes();
+
+        usuariosCache = usuarios || [];
+        renderizarListaUsuarios();
+        popularSelectsUsuarios();
+
+        config = configuracao || {};
+        atualizarUIConfig();
+        
+        await carregarAgendamentos();
+
+    } catch (e) {
+        console.error("Falha ao carregar dados:", e);
+        showSyncIndicator(false);
+    }
+}
+
+async function carregarAgendamentos() {
+    try {
+        const dados = await apiCall('getAgendamentos');
+        agendamentosRaw = dados || [];
+        atualizarAgendaVisual();
+        showSyncIndicator(false);
+    } catch(e) { console.error(e); }
+}
+
+async function carregarPacotes() {
+    try {
+        const dados = await apiCall('getPacotes');
+        pacotesCache = dados || [];
+        renderizarListaPacotes();
+    } catch(e) { console.error(e); }
+}
 
 // ==========================================
 // HELPERS (DATA LOCAL)
@@ -22,7 +135,7 @@ function switchModalTab(tabName) {
     document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
     
-    // Ativa o botão clicado (procura pelo texto no onclick para simplificar sem IDs únicos nos botões)
+    // Ativa o botão clicado
     const tabs = document.querySelectorAll('.modal-tab');
     tabs.forEach(t => {
         if(t.getAttribute('onclick') && t.getAttribute('onclick').includes(tabName)) {
@@ -93,7 +206,7 @@ function switchTab(t, el) {
         }
     }
     
-    if (t === 'pacotes' && typeof carregarPacotes === 'function') carregarPacotes(); 
+    if (t === 'pacotes') carregarPacotes(); 
     if (t === 'clientes') renderizarListaClientes();
     if (t === 'config') atualizarUIConfig();
     if (t === 'agenda') {
@@ -1179,213 +1292,6 @@ function removerMsgRapida(idx) {
 }
 
 // ==========================================
-// IMPORTAÇÃO E EXPORTAÇÃO DE DADOS (EXCEL/CSV)
-// ==========================================
-
-function renderizarAreaImportacaoExportacao() {
-    const parent = document.getElementById('cfg-area-geral');
-    if(!parent) return;
-
-    // Verifica se já existe para não duplicar
-    if(document.getElementById('area-import-export')) return;
-
-    const div = document.createElement('div');
-    div.id = 'area-import-export';
-    div.className = 'mt-6 pt-6 border-t border-slate-100';
-    div.innerHTML = `
-        <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
-            <i data-lucide="database" class="w-5 h-5 text-blue-600"></i> Dados dos Clientes
-        </h4>
-        <div class="grid grid-cols-2 gap-3">
-            <button onclick="exportarClientesCSV()" class="p-3 bg-green-50 text-green-700 font-bold rounded-xl text-sm border border-green-200 flex flex-col items-center justify-center gap-1 btn-anim hover:bg-green-100 transition-colors">
-                <i data-lucide="download" class="w-6 h-6 mb-1"></i>
-                Exportar Excel (CSV)
-            </button>
-            <label class="p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-200 flex flex-col items-center justify-center gap-1 btn-anim cursor-pointer hover:bg-blue-100 transition-colors">
-                <i data-lucide="upload" class="w-6 h-6 mb-1"></i>
-                Importar Excel (CSV)
-                <input type="file" id="input-import-csv" accept=".csv, .txt, .xlsx, .xls" class="hidden" onchange="processarImportacao(this)">
-            </label>
-        </div>
-        <p class="text-[10px] text-slate-400 mt-2 text-center">
-            Para importar do Excel: Salve como "CSV (Separado por vírgulas)".<br>
-            Colunas obrigatórias: <strong>Nome, Whatsapp</strong>
-        </p>
-    `;
-    parent.appendChild(div);
-    if(typeof lucide !== 'undefined') lucide.createIcons();
-}
-
-function exportarClientesCSV() {
-    const lista = (typeof clientesCache !== 'undefined') ? clientesCache : [];
-    
-    if(!lista || lista.length === 0) {
-        mostrarAviso("Não há clientes para exportar.");
-        return;
-    }
-
-    try {
-        let csvContent = "Nome;Whatsapp;Email;Observacoes\n";
-
-        lista.forEach(c => {
-            if (!c) return; 
-            const nome = String(c.nome || "").replace(/;/g, " ");
-            const wpp = String(c.whatsapp || "").replace(/;/g, "");
-            const email = String(c.email || "").replace(/;/g, "");
-            const obs = String(c.observacoes || "").replace(/;/g, " ").replace(/\n/g, " ");
-            csvContent += `${nome};${wpp};${email};${obs}\n`;
-        });
-
-        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `clientes_${new Date().toISOString().slice(0,10)}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-        
-    } catch (erro) {
-        console.error("Erro ao exportar:", erro);
-        mostrarAviso("Erro ao gerar o arquivo de exportação.");
-    }
-}
-
-function processarImportacao(input) {
-    const file = input.files[0];
-    if(!file) return;
-
-    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        mostrarAviso("O sistema aceita apenas arquivos .CSV. No Excel, vá em 'Salvar como' e escolha o formato 'CSV (Separado por vírgulas)'.");
-        input.value = ''; 
-        return;
-    }
-
-    const reader = new FileReader();
-    
-    reader.onload = async function(e) {
-        const text = e.target.result;
-        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-        
-        if(lines.length < 2) {
-            mostrarAviso("Arquivo vazio ou sem dados suficientes.");
-            return;
-        }
-
-        const firstLine = lines[0];
-        const delimiter = firstLine.includes(';') ? ';' : ',';
-        
-        const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/^["\ufeff]+|["\r]+$/g, ''));
-        
-        let idxNome = headers.findIndex(h => h.includes('nome') || h.includes('name'));
-        let idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular') || h.includes('fone') || h.includes('mobile'));
-        let idxEmail = headers.findIndex(h => h.includes('email') || h.includes('e-mail'));
-        
-        if (idxNome === -1 && headers.length >= 1) idxNome = 0;
-        if (idxWpp === -1 && headers.length >= 2) idxWpp = 1;
-
-        if(idxNome === -1 || idxWpp === -1) {
-            mostrarAviso(`Não foi possível identificar as colunas 'Nome' e 'Whatsapp'. (Separador: '${delimiter}')`);
-            return;
-        }
-
-        let novosClientes = [];
-        
-        if (typeof clientesCache === 'undefined') window.clientesCache = [];
-
-        for(let i = 1; i < lines.length; i++) {
-            if(!lines[i].trim()) continue;
-            
-            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
-            const nome = cols[idxNome] || "";
-            let whatsapp = cols[idxWpp] || "";
-            
-            if(nome && whatsapp) {
-                const existe = clientesCache.find(c => c.whatsapp === whatsapp || c.nome.toLowerCase() === nome.toLowerCase());
-                
-                if(!existe) {
-                    novosClientes.push({
-                        // id_cliente será gerado na função de salvar
-                        nome: nome,
-                        whatsapp: whatsapp,
-                        email: (idxEmail > -1 && cols[idxEmail]) ? cols[idxEmail] : '',
-                        observacoes: 'Importado via Planilha'
-                    });
-                }
-            }
-        }
-
-        if(novosClientes.length > 0) {
-            // Chama a função que gerencia o salvamento (API ou Local)
-            await salvarLoteClientes(novosClientes);
-            
-            // Limpa filtro e atualiza UI
-            const buscaInput = document.getElementById('busca-cliente');
-            if(buscaInput) buscaInput.value = '';
-            atualizarDatalistClientes();
-            switchTab('clientes');
-            renderizarListaClientes();
-            
-            mostrarAviso(`${novosClientes.length} clientes importados e processados!`);
-        } else {
-            mostrarAviso("Nenhum cliente novo encontrado (possíveis duplicados).");
-        }
-        
-        input.value = '';
-    };
-
-    reader.readAsText(file);
-}
-
-// NOVA FUNÇÃO: Gerencia o salvamento no banco de dados
-async function salvarLoteClientes(listaNovos) {
-    // 1. Adiciona ao cache local para visualização imediata (UI Otimista)
-    listaNovos.forEach(c => {
-        // Se ainda não tiver ID, gera um temporário
-        if(!c.id_cliente) c.id_cliente = 'temp_' + Date.now() + Math.random().toString(36).substr(2, 5);
-        
-        // Garante que clientesCache existe
-        if (typeof clientesCache !== 'undefined') {
-            clientesCache.push(c);
-        }
-    });
-
-    // 2. Ordena o cache para a UI ficar bonita
-    if (typeof clientesCache !== 'undefined') {
-        clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
-    }
-
-    console.log("Iniciando salvamento de " + listaNovos.length + " contatos...");
-
-    // 3. Tenta salvar no banco de dados (Prioridade para LOTE/BATCH que é mais rápido)
-    if (typeof window.db_importarLote === 'function') {
-        try {
-            await window.db_importarLote(listaNovos);
-            console.log("Lote salvo com sucesso via db_importarLote.");
-            return; // Sucesso, sai da função
-        } catch (e) {
-            console.error("Erro no salvamento em lote, tentando individual...", e);
-        }
-    }
-
-    // Fallback: Tenta salvar um por um se não houver função de lote
-    if (typeof window.salvarClienteAPI === 'function') {
-        for (const cliente of listaNovos) {
-            await window.salvarClienteAPI(cliente);
-        }
-    } else if (typeof window.db_criarCliente === 'function') {
-         for (const cliente of listaNovos) {
-            await window.db_criarCliente(cliente);
-        }
-    } else {
-        console.warn("ATENÇÃO: Nenhuma função de banco de dados conectada (db_importarLote, salvarClienteAPI ou db_criarCliente). Dados apenas na memória.");
-        mostrarAviso("Atenção: Os dados foram importados mas não puderam ser salvos no banco. Verifique a conexão.");
-    }
-}
-
-// ==========================================
 // PACOTES UI INTERNALS
 // ==========================================
 
@@ -1485,7 +1391,10 @@ function enviarLembrete() {
     const ag = agendamentosCache.find(a => a.id_agendamento === id);
     if (!ag) return;
     
-    const getWhatsappFunc = (typeof getWhatsappCliente === 'function') ? getWhatsappCliente : (id) => null;
+    const getWhatsappFunc = (typeof getWhatsappCliente === 'function') ? getWhatsappCliente : (id) => {
+         const cli = clientesCache.find(c => c.id_cliente === ag.id_cliente);
+         return cli ? cli.whatsapp : null;
+    };
     const numero = getWhatsappFunc(id);
     
     if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
@@ -1506,8 +1415,13 @@ function enviarLembrete() {
 
 function abrirSelecaoMsgRapida() {
     const id = document.getElementById('id-agendamento-ativo').value;
-    const getWhatsappFunc = (typeof getWhatsappCliente === 'function') ? getWhatsappCliente : (id) => null;
-    const numero = getWhatsappFunc(id);
+    // Tenta encontrar o cliente pelo agendamento
+    const ag = agendamentosCache.find(a => a.id_agendamento === id);
+    let numero = null;
+    if(ag) {
+        const cli = clientesCache.find(c => c.id_cliente === ag.id_cliente);
+        if(cli) numero = cli.whatsapp;
+    }
 
     if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
 
@@ -1533,8 +1447,12 @@ function abrirSelecaoMsgRapida() {
 
 function abrirChatDireto() {
     const id = document.getElementById('id-agendamento-ativo').value;
-    const getWhatsappFunc = (typeof getWhatsappCliente === 'function') ? getWhatsappCliente : (id) => null;
-    const numero = getWhatsappFunc(id);
+    const ag = agendamentosCache.find(a => a.id_agendamento === id);
+    let numero = null;
+    if(ag) {
+        const cli = clientesCache.find(c => c.id_cliente === ag.id_cliente);
+        if(cli) numero = cli.whatsapp;
+    }
     
     if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
     window.open(`https://wa.me/${numero}`, '_blank');
@@ -1546,12 +1464,19 @@ function abrirChatDireto() {
 
 function mostrarAviso(msg) { 
     const el = document.getElementById('aviso-msg');
-    if(el) el.innerText = msg; 
-    document.getElementById('modal-aviso').classList.add('open'); 
+    if(el) {
+        el.innerText = msg; 
+        document.getElementById('modal-aviso').classList.add('open');
+    } else {
+        alert(msg);
+    }
 }
 
 function mostrarConfirmacao(t, m, yesCb, noCb, yesTxt='Sim', noTxt='Cancelar') { 
-    document.getElementById('confirm-titulo').innerText = t; 
+    const tit = document.getElementById('confirm-titulo');
+    if(!tit) { if(confirm(m)) yesCb(); return; } // Fallback
+
+    tit.innerText = t; 
     document.getElementById('confirm-msg').innerText = m; 
     
     const oldY = document.getElementById('btn-confirm-yes'); 
@@ -1578,13 +1503,14 @@ function mostrarConfirmacao(t, m, yesCb, noCb, yesTxt='Sim', noTxt='Cancelar') {
 }
 
 function setLoading(btn, l, t) { 
+    if(!btn) return;
     btn.disabled = l; 
     if (l) { 
         const isDarkBg = btn.classList.contains('btn-primary') || btn.classList.contains('bg-blue-600') || btn.classList.contains('bg-red-600'); 
         const spinnerType = isDarkBg ? 'spinner' : 'spinner spinner-dark'; 
         btn.innerHTML = `<span class="${spinnerType}"></span>`; 
     } else { 
-        btn.innerHTML = t; 
+        btn.innerHTML = t || btn.innerHTML; // Mantém o texto se t não for passado
     } 
 }
 
@@ -1592,4 +1518,16 @@ function showSyncIndicator(show) {
     if(typeof isSyncing !== 'undefined') isSyncing = show; 
     const ind = document.getElementById('sync-indicator');
     if(ind) ind.style.display = show ? 'flex' : 'none'; 
+}
+
+function formatarDataBr(dataIso) {
+    if(!dataIso) return '';
+    try {
+        // Se vier como YYYY-MM-DD
+        if(dataIso.includes('-')) {
+             const [ano, mes, dia] = dataIso.split('-');
+             return `${dia}/${mes}/${ano}`;
+        }
+        return dataIso;
+    } catch(e) { return dataIso; }
 }
