@@ -20,6 +20,7 @@ let config = {
 };
 let agendamentosRaw = [];
 let isSyncing = false;
+let isSaving = false; // Nova flag para bloquear updates durante salvamento
 let pollingInterval = null;
 
 // --- CACHE LOCAL ---
@@ -145,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('beforeunload', function (e) {
-        if (isSyncing) {
+        if (isSyncing || isSaving) {
             e.preventDefault();
             e.returnValue = '';
         }
@@ -211,10 +212,19 @@ function atualizarAgendaVisual() {
 }
 
 function recarregarAgendaComFiltro(silencioso = false) {
+    // Se estiver a salvar algo, não recarrega para evitar sobrescrita visual (Fluidez)
+    if (isSaving) return;
+
     if(!silencioso) showSyncIndicator(true);
     const modalIdInput = document.getElementById('id-agendamento-ativo'); const activeTempId = (modalIdInput && String(modalIdInput.value).startsWith('temp_')) ? modalIdInput.value : null; let tempItem = null; if(activeTempId) { tempItem = agendamentosRaw.find(a => a.id_agendamento === activeTempId); }
+    
+    // Captura itens temporários locais antes de buscar do servidor
+    const currentTemps = agendamentosRaw.filter(a => String(a.id_agendamento).startsWith('temp_'));
+
     fetch(`${API_URL}?action=getAgendamentos`).then(r => r.json()).then(dados => {
-        const novosAgendamentos = Array.isArray(dados) ? dados : [];
+        let novosAgendamentos = Array.isArray(dados) ? dados : [];
+        
+        // Se havia modal aberto com item real que foi atualizado, tenta manter
         if (activeTempId && tempItem) {
             const realItem = novosAgendamentos.find(a => a.data_agendamento === tempItem.data_agendamento && a.hora_inicio === tempItem.hora_inicio && (a.nome_cliente === tempItem.nome_cliente || (a.observacoes && a.observacoes.includes(tempItem.nome_cliente))) );
             if (realItem) { 
@@ -222,7 +232,15 @@ function recarregarAgendaComFiltro(silencioso = false) {
                 modalIdInput.value = realItem.id_agendamento; abrirModalDetalhes(realItem.id_agendamento); 
             }
         }
-        agendamentosRaw = novosAgendamentos; saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual(); showSyncIndicator(false);
+
+        // Merge: Adiciona os temporários locais à lista que veio do servidor
+        // Isso impede que eles sumam da tela se o servidor ainda não os processou
+        novosAgendamentos = [...novosAgendamentos, ...currentTemps];
+
+        agendamentosRaw = novosAgendamentos; 
+        saveToCache('agendamentos', agendamentosRaw); 
+        atualizarAgendaVisual(); 
+        showSyncIndicator(false);
     }).catch((e) => { console.error(e); showSyncIndicator(false); });
 }
 
@@ -289,31 +307,27 @@ async function salvarAgendamentoOtimista(e) {
     const tempId = 'temp_' + Date.now(); const profId = (currentUser.nivel === 'admin' && document.getElementById('select-prof-modal').value) ? document.getElementById('select-prof-modal').value : currentUser.id_usuario;
     const novoItem = { id_agendamento: tempId, id_cliente: cliente ? cliente.id_cliente : 'novo', id_servico: servico.id_servico, data_agendamento: dataAg, hora_inicio: horaIni, hora_fim: calcularHoraFim(horaIni, servico.duracao_minutos), status: 'Agendado', nome_cliente: nomeCliente, id_profissional: profId, id_pacote_usado: document.getElementById('check-usar-pacote').checked ? document.getElementById('id-pacote-selecionado').value : '' };
     
-    // START CHANGE: Atualização Otimista do Saldo do Pacote
+    // Atualização Otimista do Saldo do Pacote
     const usarPacote = document.getElementById('check-usar-pacote').checked;
     const idPacote = document.getElementById('id-pacote-selecionado').value;
     if(usarPacote && idPacote) {
         const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
         if(pIndex > -1) {
-            // Decrementa saldo localmente
             pacotesCache[pIndex].qtd_restante = Math.max(0, parseInt(pacotesCache[pIndex].qtd_restante) - 1);
             saveToCache('pacotes', pacotesCache);
         }
     }
-    // END CHANGE
 
     agendamentosRaw.push(novoItem); saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual();
     showSyncIndicator(true);
+    isSaving = true; // Bloqueia polling
     
     try {
         const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'createAgendamento', nome_cliente: nomeCliente, id_cliente: novoItem.id_cliente, id_servico: novoItem.id_servico, data_agendamento: dataAg, hora_inicio: horaIni, usar_pacote_id: novoItem.id_pacote_usado, id_profissional: profId }) });
         const data = await res.json();
         
-        // START CHANGE: Tratamento de Erro do Backend (ex: Saldo Insuficiente)
-        if (data.status === 'erro') {
-            throw new Error(data.mensagem);
-        }
-        // END CHANGE
+        // Tratamento de Erro do Backend
+        if (data.status === 'erro') { throw new Error(data.mensagem); }
 
         if (data.status === 'sucesso' && data.id_agendamento) { const idx = agendamentosRaw.findIndex(a => a.id_agendamento === tempId); if (idx !== -1) { agendamentosRaw[idx].id_agendamento = data.id_agendamento; if (data.id_cliente) agendamentosRaw[idx].id_cliente = data.id_cliente; saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual(); const modalIdInput = document.getElementById('id-agendamento-ativo'); if(modalIdInput && modalIdInput.value === tempId) { modalIdInput.value = data.id_agendamento; abrirModalDetalhes(data.id_agendamento); } } }
         showSyncIndicator(false);
@@ -322,21 +336,21 @@ async function salvarAgendamentoOtimista(e) {
         agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId); 
         saveToCache('agendamentos', agendamentosRaw); 
         
-        // START CHANGE: Rollback do Saldo do Pacote em caso de erro
+        // Rollback do Saldo do Pacote em caso de erro
         if(usarPacote && idPacote) {
             const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
             if(pIndex > -1) {
-                // Devolve o saldo localmente
                 pacotesCache[pIndex].qtd_restante = parseInt(pacotesCache[pIndex].qtd_restante) + 1;
                 saveToCache('pacotes', pacotesCache);
             }
         }
-        // END CHANGE
 
         atualizarAgendaVisual(); 
         mostrarAviso(err.message || 'Falha ao salvar agendamento.'); 
         showSyncIndicator(false); 
-    } 
+    } finally {
+        isSaving = false; // Libera polling
+    }
     f.reset();
 }
 
@@ -352,7 +366,8 @@ async function executarMudancaStatusOtimista(id, st, devolver) {
     const index = agendamentosRaw.findIndex(a => a.id_agendamento === id); if(index === -1) return; const backup = { ...agendamentosRaw[index] };
     if(st === 'Excluir') { agendamentosRaw.splice(index, 1); } else { agendamentosRaw[index].status = st; } saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual();
     showSyncIndicator(true);
-    try { const res = await fetch(API_URL, { method:'POST', body:JSON.stringify({ action:'updateStatusAgendamento', id_agendamento:id, novo_status:st, devolver_credito: devolver }) }); const data = await res.json(); if (data.status !== 'sucesso') { throw new Error(data.mensagem || 'Erro no servidor'); } if(devolver) setTimeout(carregarPacotes, 1000); showSyncIndicator(false); } catch(e) { console.error("Erro update status", e); if(st === 'Excluir') agendamentosRaw.splice(index, 0, backup); else agendamentosRaw[index] = backup; saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual(); mostrarAviso('Erro de conexão. Alteração não salva.'); showSyncIndicator(false); }
+    isSaving = true;
+    try { const res = await fetch(API_URL, { method:'POST', body:JSON.stringify({ action:'updateStatusAgendamento', id_agendamento:id, novo_status:st, devolver_credito: devolver }) }); const data = await res.json(); if (data.status !== 'sucesso') { throw new Error(data.mensagem || 'Erro no servidor'); } if(devolver) setTimeout(carregarPacotes, 1000); showSyncIndicator(false); } catch(e) { console.error("Erro update status", e); if(st === 'Excluir') agendamentosRaw.splice(index, 0, backup); else agendamentosRaw[index] = backup; saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual(); mostrarAviso('Erro de conexão. Alteração não salva.'); showSyncIndicator(false); } finally { isSaving = false; }
 }
 function calcularHoraFim(inicio, duracao) { const [h, m] = inicio.split(':').map(Number); const fimMin = h * 60 + m + parseInt(duracao); return `${String(Math.floor(fimMin / 60)).padStart(2,'0')}:${String(fimMin % 60).padStart(2,'0')}`; }
 function mostrarAviso(msg) { document.getElementById('aviso-msg').innerText = msg; document.getElementById('modal-aviso').classList.add('open'); }
