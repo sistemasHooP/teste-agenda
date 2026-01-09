@@ -1345,34 +1345,43 @@ async function salvarLoteClientes(listaNovos) {
     listaNovos.forEach(c => {
         // Se ainda não tiver ID, gera um temporário
         if(!c.id_cliente) c.id_cliente = 'temp_' + Date.now() + Math.random().toString(36).substr(2, 5);
-        clientesCache.push(c);
+        
+        // Garante que clientesCache existe
+        if (typeof clientesCache !== 'undefined') {
+            clientesCache.push(c);
+        }
     });
 
     // 2. Ordena o cache para a UI ficar bonita
-    clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
+    if (typeof clientesCache !== 'undefined') {
+        clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
+    }
 
-    // 3. Tenta salvar no banco de dados se houver API conectada
-    // Se você tiver uma função global 'salvarClienteAPI', ela será chamada aqui.
-    if (typeof window.salvarClienteAPI === 'function') {
+    console.log("Iniciando salvamento de " + listaNovos.length + " contatos...");
+
+    // 3. Tenta salvar no banco de dados (Prioridade para LOTE/BATCH que é mais rápido)
+    if (typeof window.db_importarLote === 'function') {
         try {
-            console.log("Salvando lote no banco de dados...");
-            for (const cliente of listaNovos) {
-                await window.salvarClienteAPI(cliente);
-            }
-            console.log("Todos os clientes salvos com sucesso.");
-        } catch (error) {
-            console.error("Erro ao salvar no banco:", error);
-            mostrarAviso("Erro ao salvar no banco. Verifique a conexão.");
+            await window.db_importarLote(listaNovos);
+            console.log("Lote salvo com sucesso via db_importarLote.");
+            return; // Sucesso, sai da função
+        } catch (e) {
+            console.error("Erro no salvamento em lote, tentando individual...", e);
+        }
+    }
+
+    // Fallback: Tenta salvar um por um se não houver função de lote
+    if (typeof window.salvarClienteAPI === 'function') {
+        for (const cliente of listaNovos) {
+            await window.salvarClienteAPI(cliente);
         }
     } else if (typeof window.db_criarCliente === 'function') {
-         // Tenta outro nome comum de função
          for (const cliente of listaNovos) {
             await window.db_criarCliente(cliente);
         }
     } else {
-        console.warn("ATENÇÃO: Função de salvar no banco não encontrada. Os dados estão apenas na memória.");
-        // AQUI É ONDE VOCÊ DEVE CONECTAR SUA API SE TIVER O NOME DELA
-        // Exemplo: firebase.firestore().collection('clientes').add(...)
+        console.warn("ATENÇÃO: Nenhuma função de banco de dados conectada (db_importarLote, salvarClienteAPI ou db_criarCliente). Dados apenas na memória.");
+        mostrarAviso("Atenção: Os dados foram importados mas não puderam ser salvos no banco. Verifique a conexão.");
     }
 }
 
