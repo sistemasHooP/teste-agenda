@@ -1,3 +1,9 @@
+/**
+ * js/api.js
+ * Gerencia todas as chamadas lógicas de negócio e comunicação com o backend (Google Apps Script).
+ * Utiliza o helper 'apiCall' definido em ui.js.
+ */
+
 // ==========================================
 // AUTENTICAÇÃO E INICIALIZAÇÃO
 // ==========================================
@@ -5,15 +11,16 @@
 async function fazerLogin(e) {
     e.preventDefault(); 
     const btn = document.getElementById('btn-login'); 
-    setLoading(btn, true, 'Entrar'); 
+    // setLoading vem do ui.js. Se der erro aqui, verifique se ui.js carregou.
+    if(typeof setLoading === 'function') setLoading(btn, true, 'Entrar'); 
     
     const email = document.getElementById('login-email').value; 
     const senha = document.getElementById('login-senha').value; 
     const manter = document.getElementById('login-manter').checked;
 
     try { 
-        const r = await fetch(`${API_URL}?action=login&email=${email}&senha=${senha}`); 
-        const res = await r.json(); 
+        // Usa apiCall do ui.js para padronizar
+        const res = await apiCall('login', { email: email, senha: senha });
         
         if (res.status === 'sucesso') { 
             currentUser = res.usuario; 
@@ -21,19 +28,20 @@ async function fazerLogin(e) {
             else sessionStorage.setItem('minhaAgendaUser', JSON.stringify(currentUser)); 
             iniciarApp(); 
         } else { 
-            mostrarAviso(res.mensagem); 
-            setLoading(btn, false, 'Entrar'); 
+            mostrarAviso(res.mensagem || 'Login falhou'); 
+            if(typeof setLoading === 'function') setLoading(btn, false, 'Entrar'); 
         } 
     } catch(err) { 
-        mostrarAviso('Erro de conexão'); 
-        setLoading(btn, false, 'Entrar'); 
+        console.error("Login error:", err);
+        mostrarAviso('Erro de conexão. Verifique se o Script está publicado como "Qualquer pessoa".'); 
+        if(typeof setLoading === 'function') setLoading(btn, false, 'Entrar'); 
     }
 }
 
 function logout() { 
     localStorage.removeItem('minhaAgendaUser'); 
     sessionStorage.removeItem('minhaAgendaUser'); 
-    if(pollingInterval) clearInterval(pollingInterval); 
+    if(typeof pollingInterval !== 'undefined' && pollingInterval) clearInterval(pollingInterval); 
     location.reload(); 
 }
 
@@ -45,17 +53,17 @@ async function sincronizarDadosAPI() {
     const hasData = document.querySelectorAll('.time-slot').length > 0; 
     const container = document.getElementById('agenda-timeline'); 
     
-    if(!hasData && agendamentosRaw.length === 0) { 
-        container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>'; 
+    if(!hasData && (!agendamentosRaw || agendamentosRaw.length === 0)) { 
+        if(container) container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>'; 
     } else { 
         showSyncIndicator(true); 
     }
     
     try {
+        // Função auxiliar interna para tratar falhas silenciosas em chamadas paralelas
         const fetchSafe = async (action) => { 
             try { 
-                const r = await fetch(`${API_URL}?action=${action}`); 
-                return await r.json(); 
+                return await apiCall(action); 
             } catch(e) { 
                 console.error(`Erro ${action}`, e); 
                 return []; 
@@ -68,7 +76,7 @@ async function sincronizarDadosAPI() {
             fetchSafe('getClientes'), 
             fetchSafe('getPacotes'), 
             fetchSafe('getAgendamentos'), 
-            currentUser.nivel === 'admin' ? fetchSafe('getUsuarios') : Promise.resolve([]) 
+            (currentUser && currentUser.nivel === 'admin') ? fetchSafe('getUsuarios') : Promise.resolve([]) 
         ]);
 
         if(resConfig && resConfig.abertura) { 
@@ -92,12 +100,13 @@ async function sincronizarDadosAPI() {
         usuariosCache = Array.isArray(resUsuarios) ? resUsuarios : []; 
         if(usuariosCache.length > 0) saveToCache('usuarios', usuariosCache);
 
+        // Atualiza UI
         atualizarDataEPainel(); 
         atualizarDatalistServicos(); 
         atualizarDatalistClientes(); 
         renderizarListaServicos(); 
         
-        if (currentUser.nivel === 'admin') { 
+        if (currentUser && currentUser.nivel === 'admin') { 
             renderizarListaPacotes(); 
             renderizarListaUsuarios(); 
             popularSelectsUsuarios(); 
@@ -107,7 +116,7 @@ async function sincronizarDadosAPI() {
         showSyncIndicator(false);
     } catch (error) { 
         console.error("Erro sincronização", error); 
-        if(!hasData) container.innerHTML = '<p class="text-center text-red-400 text-sm">Erro de conexão.</p>'; 
+        if(!hasData && container) container.innerHTML = '<p class="text-center text-red-400 text-sm">Erro de conexão.</p>'; 
         showSyncIndicator(false); 
     }
 }
@@ -119,15 +128,15 @@ function recarregarAgendaComFiltro(silencioso = false) {
     const activeTempId = (modalIdInput && String(modalIdInput.value).startsWith('temp_')) ? modalIdInput.value : null; 
     let tempItem = null; 
     
-    if(activeTempId) { 
+    if(activeTempId && agendamentosRaw) { 
         tempItem = agendamentosRaw.find(a => a.id_agendamento === activeTempId); 
     }
     
-    fetch(`${API_URL}?action=getAgendamentos`)
-        .then(r => r.json())
+    apiCall('getAgendamentos')
         .then(dados => {
             const novosAgendamentos = Array.isArray(dados) ? dados : [];
             
+            // Lógica para preservar item temporário se ele foi salvo no backend entretanto
             if (activeTempId && tempItem) {
                 const realItem = novosAgendamentos.find(a => 
                     a.data_agendamento === tempItem.data_agendamento && 
@@ -138,7 +147,7 @@ function recarregarAgendaComFiltro(silencioso = false) {
                 if (realItem) { 
                     const idxLocal = agendamentosRaw.findIndex(a => a.id_agendamento === activeTempId); 
                     if(idxLocal !== -1) { agendamentosRaw[idxLocal] = realItem; }
-                    modalIdInput.value = realItem.id_agendamento; 
+                    if(modalIdInput) modalIdInput.value = realItem.id_agendamento; 
                     abrirModalDetalhes(realItem.id_agendamento); 
                 }
             }
@@ -155,32 +164,26 @@ function recarregarAgendaComFiltro(silencioso = false) {
 }
 
 function carregarServicos() { 
-    fetch(`${API_URL}?action=getServicos`)
-        .then(r=>r.json())
-        .then(d=>{ 
-            servicosCache=d; 
-            renderizarListaServicos(); 
-            atualizarDatalistServicos(); 
-        }); 
+    apiCall('getServicos').then(d=>{ 
+        servicosCache=d; 
+        renderizarListaServicos(); 
+        atualizarDatalistServicos(); 
+    }); 
 }
 
 function carregarPacotes() { 
-    fetch(`${API_URL}?action=getPacotes`)
-        .then(r=>r.json())
-        .then(d=>{ 
-            pacotesCache=d; 
-            renderizarListaPacotes(); 
-        }); 
+    apiCall('getPacotes').then(d=>{ 
+        pacotesCache=d; 
+        renderizarListaPacotes(); 
+    }); 
 }
 
 function carregarUsuarios() { 
-    fetch(`${API_URL}?action=getUsuarios`)
-        .then(r=>r.json())
-        .then(d=>{ 
-            usuariosCache=d; 
-            renderizarListaUsuarios(); 
-            popularSelectsUsuarios(); 
-        }); 
+    apiCall('getUsuarios').then(d=>{ 
+        usuariosCache=d; 
+        renderizarListaUsuarios(); 
+        popularSelectsUsuarios(); 
+    }); 
 }
 
 // ==========================================
@@ -191,7 +194,8 @@ function carregarUsuarios() {
 
 async function salvarAgendamentoOtimista(e) { 
     e.preventDefault(); 
-    const f = e.target; 
+    const f = e.target; // O form
+    // Usa FormData para pegar valores ou acesso direto
     const nomeCliente = f.nome_cliente.value; 
     const nomeServico = f.nome_servico.value; 
     const dataAg = f.data_agendamento.value; 
@@ -226,20 +230,15 @@ async function salvarAgendamentoOtimista(e) {
     showSyncIndicator(true);
 
     try {
-        const res = await fetch(API_URL, { 
-            method: 'POST', 
-            body: JSON.stringify({ 
-                action: 'createAgendamento', 
-                nome_cliente: nomeCliente, 
-                id_cliente: novoItem.id_cliente, 
-                id_servico: novoItem.id_servico, 
-                data_agendamento: dataAg, 
-                hora_inicio: horaIni, 
-                usar_pacote_id: novoItem.id_pacote_usado, 
-                id_profissional: profId 
-            }) 
-        });
-        const data = await res.json();
+        const data = await apiCall('createAgendamento', {
+            nome_cliente: nomeCliente,
+            id_cliente: novoItem.id_cliente,
+            id_servico: novoItem.id_servico,
+            data_agendamento: dataAg,
+            hora_inicio: horaIni,
+            usar_pacote_id: novoItem.id_pacote_usado,
+            id_profissional: profId
+        }, 'POST');
         
         if (data.status === 'sucesso' && data.id_agendamento) { 
             const idx = agendamentosRaw.findIndex(a => a.id_agendamento === tempId); 
@@ -308,18 +307,13 @@ async function bloquearHorarioAPI(e) {
     fecharModal('modal-bloqueio');
 
     try {
-        const res = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'bloquearHorario',
-                data_agendamento: dataBloq,
-                hora_inicio: horaBloq,
-                duracao_minutos: duracao,
-                motivo: motivo,
-                id_profissional: profId
-            })
-        });
-        const data = await res.json();
+        const data = await apiCall('bloquearHorario', {
+            data_agendamento: dataBloq,
+            hora_inicio: horaBloq,
+            duracao_minutos: duracao,
+            motivo: motivo,
+            id_profissional: profId
+        }, 'POST');
 
         if (data.status === 'sucesso' && data.id_agendamento) {
             const idx = agendamentosRaw.findIndex(a => a.id_agendamento === tempId);
@@ -362,16 +356,11 @@ async function executarMudancaStatusOtimista(id, st, devolver) {
     showSyncIndicator(true);
 
     try { 
-        const res = await fetch(API_URL, { 
-            method:'POST', 
-            body:JSON.stringify({ 
-                action:'updateStatusAgendamento', 
-                id_agendamento:id, 
-                novo_status:st, 
-                devolver_credito: devolver 
-            }) 
-        }); 
-        const data = await res.json(); 
+        const data = await apiCall('updateStatusAgendamento', {
+            id_agendamento: id,
+            novo_status: st,
+            devolver_credito: devolver
+        }, 'POST');
         
         if (data.status !== 'sucesso') { 
             throw new Error(data.mensagem || 'Erro no servidor'); 
@@ -401,20 +390,17 @@ async function salvarEdicaoAgendamento(e) {
     const novoHorario = document.getElementById('edit-agenda-hora').value; 
     
     try { 
-        await fetch(API_URL, { 
-            method: 'POST', 
-            body: JSON.stringify({ 
-                action: 'updateAgendamentoDataHora', 
-                id_agendamento: id, 
-                data_agendamento: novaData, 
-                hora_inicio: novoHorario 
-            }) 
-        }); 
+        await apiCall('updateAgendamentoDataHora', {
+            id_agendamento: id,
+            data_agendamento: novaData,
+            hora_inicio: novoHorario
+        }, 'POST');
+
         fecharModal('modal-editar-agendamento'); 
         recarregarAgendaComFiltro(); 
         mostrarAviso('Agendamento atualizado!'); 
     } catch(err) { 
-        mostrarAviso('Erro.'); 
+        mostrarAviso('Erro ao editar.'); 
     } finally { 
         setLoading(btn, false, originalText); 
     } 
@@ -432,20 +418,18 @@ async function salvarConfigAPI(btn) {
     const encaixe = document.getElementById('cfg-concorrencia').checked; 
     const msgLembrete = document.getElementById('cfg-lembrete-template').value;
     const msgsRapidas = config.mensagens_rapidas;
-    // Captura os horários semanais atualizados que foram modificados em memória (js/ui.js)
     const horariosSemanais = config.horarios_semanais;
 
     try { 
-        await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
-            action: 'saveConfig', 
+        await apiCall('saveConfig', {
             abertura: abertura, 
             fechamento: fechamento, 
             intervalo_minutos: intervalo, 
             permite_encaixe: encaixe,
             mensagem_lembrete: msgLembrete,
             mensagens_rapidas: msgsRapidas,
-            horarios_semanais: horariosSemanais 
-        })}); 
+            horarios_semanais: horariosSemanais
+        }, 'POST');
         
         config.abertura = abertura;
         config.fechamento = fechamento;
@@ -486,14 +470,13 @@ async function salvarVendaPacote(e) {
     } 
     
     try { 
-        await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
-            action:'createPacote', 
+        await apiCall('createPacote', {
             id_cliente: cliente.id_cliente, 
             nome_cliente: cliente.nome, 
             itens: itensPacoteTemp, 
             valor_total: f.valor_total.value, 
             validade: f.validade.value 
-        })}); 
+        }, 'POST');
         
         fecharModal('modal-vender-pacote'); 
         f.reset(); 
@@ -515,14 +498,13 @@ async function salvarUsuario(e) {
     const f = e.target; 
     
     try { 
-        await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
-            action: 'createUsuario', 
+        await apiCall('createUsuario', {
             nome: f.nome.value, 
             email: f.email.value, 
             senha: f.senha.value, 
             nivel: f.nivel.value, 
             cor: '#3b82f6' 
-        })}); 
+        }, 'POST');
         
         fecharModal('modal-usuario'); 
         f.reset(); 
@@ -544,15 +526,14 @@ async function salvarEdicaoUsuario(e) {
     const f = e.target;
     
     try {
-        await fetch(API_URL, {method:'POST', body:JSON.stringify({
-            action: 'updateUsuario',
+        await apiCall('updateUsuario', {
             id_usuario: f.id_usuario.value,
             nome: f.nome.value,
             email: f.email.value,
             senha: f.senha.value,
             nivel: f.nivel.value,
             cor: f.cor.value
-        })});
+        }, 'POST');
 
         fecharModal('modal-editar-usuario');
         carregarUsuarios();
@@ -574,7 +555,7 @@ async function excluirUsuarioViaModal() {
 
     mostrarConfirmacao('Excluir Profissional', 'Tem certeza? Isso não apaga os agendamentos dele.', async () => {
         try {
-            await fetch(API_URL, {method:'POST', body:JSON.stringify({action:'deleteUsuario', id_usuario: id})});
+            await apiCall('deleteUsuario', { id_usuario: id }, 'POST');
             fecharModal('modal-confirmacao');
             fecharModal('modal-editar-usuario');
             carregarUsuarios();
@@ -592,18 +573,17 @@ async function salvarNovoCliente(e) {
     const f = e.target; 
     
     try { 
-        const res = await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
-            action: 'createCliente', 
+        const data = await apiCall('createCliente', {
             nome: f.nome.value, 
             whatsapp: f.whatsapp.value, 
             email: f.email.value 
-        })}); 
-        const data = await res.json(); 
+        }, 'POST');
         
         if(data.status === 'sucesso') { 
             clientesCache.push({ id_cliente: data.id_cliente, nome: data.nome, whatsapp: f.whatsapp.value }); 
             atualizarDatalistClientes(); 
-            document.getElementById('input-cliente-nome').value = data.nome; 
+            const inputNome = document.getElementById('input-cliente-nome');
+            if(inputNome) inputNome.value = data.nome; 
             fecharModal('modal-cliente'); 
             f.reset(); 
             mostrarAviso('Cliente cadastrado!'); 
@@ -626,18 +606,12 @@ async function salvarEdicaoCliente(e) {
     const f = e.target;
 
     try {
-        const res = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'updateCliente',
-                id_cliente: f.id_cliente.value,
-                nome: f.nome.value,
-                whatsapp: f.whatsapp.value,
-                email: f.email.value
-            })
-        });
-        
-        const data = await res.json();
+        const data = await apiCall('updateCliente', {
+            id_cliente: f.id_cliente.value,
+            nome: f.nome.value,
+            whatsapp: f.whatsapp.value,
+            email: f.email.value
+        }, 'POST');
 
         if (data.status === 'sucesso') {
             const idx = clientesCache.findIndex(c => String(c.id_cliente) === String(f.id_cliente.value));
@@ -648,8 +622,8 @@ async function salvarEdicaoCliente(e) {
             }
             
             atualizarDatalistClientes();
-            if (abaAtiva === 'clientes') {
-                renderizarListaClientes(document.getElementById('busca-cliente').value);
+            if (typeof renderizarListaClientes === 'function') {
+                renderizarListaClientes(document.getElementById('busca-cliente')?.value);
             }
 
             fecharModal('modal-editar-cliente');
@@ -675,27 +649,28 @@ async function salvarNovoServico(e) {
     const fileInput = document.getElementById('input-imagem-servico'); 
     let imagemUrl = ''; 
     
-    if (fileInput.files.length > 0) { 
+    if (fileInput && fileInput.files.length > 0) { 
         btn.innerHTML = '<span class="spinner"></span> Enviando img...'; 
         try { 
             const formData = new FormData(); 
             formData.append('image', fileInput.files[0]); 
-            const imgReq = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: 'POST', body: formData }); 
+            // Nota: IMGBB_API_KEY deve estar no utils.js
+            const key = (typeof IMGBB_API_KEY !== 'undefined') ? IMGBB_API_KEY : '';
+            const imgReq = await fetch(`https://api.imgbb.com/1/upload?key=${key}`, { method: 'POST', body: formData }); 
             const imgRes = await imgReq.json(); 
             if (imgRes.success) { imagemUrl = imgRes.data.url; } 
         } catch (err) { console.error(err); } 
     } 
     
     try { 
-        await fetch(API_URL,{method:'POST',body:JSON.stringify({
-            action:'createServico', 
-            nome_servico:f.nome_servico.value, 
-            valor_unitario:f.valor_unitario.value, 
-            duracao_minutos:f.duracao_minutos.value, 
-            cor_hex:document.getElementById('input-cor-selecionada').value, 
+        await apiCall('createServico', {
+            nome_servico: f.nome_servico.value, 
+            valor_unitario: f.valor_unitario.value, 
+            duracao_minutos: f.duracao_minutos.value, 
+            cor_hex: document.getElementById('input-cor-selecionada').value, 
             imagem_url: imagemUrl, 
             online_booking: document.getElementById('check-online-booking').checked 
-        })}); 
+        }, 'POST');
         
         fecharModal('modal-servico'); 
         f.reset(); 
@@ -716,20 +691,20 @@ async function salvarEdicaoServico(e) {
     const fileInput = document.getElementById('edit-input-imagem-servico'); 
     let imagemUrl = ''; 
     
-    if (fileInput.files.length > 0) { 
+    if (fileInput && fileInput.files.length > 0) { 
         btn.innerHTML = '<span class="spinner"></span> Enviando img...'; 
         try { 
             const formData = new FormData(); 
             formData.append('image', fileInput.files[0]); 
-            const imgReq = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: 'POST', body: formData }); 
+            const key = (typeof IMGBB_API_KEY !== 'undefined') ? IMGBB_API_KEY : '';
+            const imgReq = await fetch(`https://api.imgbb.com/1/upload?key=${key}`, { method: 'POST', body: formData }); 
             const imgRes = await imgReq.json(); 
             if (imgRes.success) { imagemUrl = imgRes.data.url; } 
         } catch (err) { console.error(err); } 
     } 
     
     try { 
-        await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
-            action: 'updateServico', 
+        await apiCall('updateServico', {
             id_servico: f.id_servico.value, 
             nome_servico: f.nome_servico.value, 
             valor_unitario: f.valor_unitario.value, 
@@ -737,7 +712,7 @@ async function salvarEdicaoServico(e) {
             cor_hex: f.cor_hex.value, 
             online_booking: document.getElementById('edit-check-online-booking').checked, 
             imagem_url: imagemUrl 
-        })}); 
+        }, 'POST');
         
         fecharModal('modal-editar-servico'); 
         carregarServicos(); 
@@ -749,10 +724,10 @@ async function salvarEdicaoServico(e) {
 }
 
 async function excluirServicoViaModal(){ 
-    const id=document.getElementById('edit-id-servico').value; 
+    const id = document.getElementById('edit-id-servico').value; 
     mostrarConfirmacao('Excluir Serviço', 'Tem certeza?', async () => { 
         try { 
-            await fetch(API_URL, {method:'POST', body:JSON.stringify({action:'deleteServico', id_servico: id})}); 
+            await apiCall('deleteServico', { id_servico: id }, 'POST');
             fecharModal('modal-confirmacao'); 
             fecharModal('modal-editar-servico'); 
             carregarServicos(); 
