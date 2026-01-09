@@ -1199,16 +1199,16 @@ function renderizarAreaImportacaoExportacao() {
         <div class="grid grid-cols-2 gap-3">
             <button onclick="exportarClientesCSV()" class="p-3 bg-green-50 text-green-700 font-bold rounded-xl text-sm border border-green-200 flex flex-col items-center justify-center gap-1 btn-anim hover:bg-green-100 transition-colors">
                 <i data-lucide="download" class="w-6 h-6 mb-1"></i>
-                Exportar Excel
+                Exportar Excel (CSV)
             </button>
             <label class="p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-200 flex flex-col items-center justify-center gap-1 btn-anim cursor-pointer hover:bg-blue-100 transition-colors">
                 <i data-lucide="upload" class="w-6 h-6 mb-1"></i>
-                Importar Excel
-                <input type="file" id="input-import-csv" accept=".csv" class="hidden" onchange="processarImportacao(this)">
+                Importar Excel (CSV)
+                <input type="file" id="input-import-csv" accept=".csv, .txt, .xlsx, .xls" class="hidden" onchange="processarImportacao(this)">
             </label>
         </div>
         <p class="text-[10px] text-slate-400 mt-2 text-center">
-            Para importar: Use um arquivo .CSV separado por vírgulas ou ponto-e-vírgula.<br>
+            Para importar do Excel: Salve como "CSV (Separado por vírgulas)".<br>
             Colunas obrigatórias: <strong>Nome, Whatsapp</strong>
         </p>
     `;
@@ -1226,20 +1226,20 @@ function exportarClientesCSV() {
     }
 
     try {
-        // Cria o cabeçalho
-        let csvContent = "Nome,Whatsapp,Email,Observacoes\n";
+        // Cria o cabeçalho (usando ponto e vírgula para Excel PT-BR/PT-PT reconhecer automaticamente)
+        let csvContent = "Nome;Whatsapp;Email;Observacoes\n";
 
         // Adiciona os dados
         lista.forEach(c => {
             if (!c) return; // Segurança contra itens nulos
             
-            // Converte para String antes de fazer replace para evitar erros se for número
-            const nome = String(c.nome || "").replace(/,/g, " ");
-            const wpp = String(c.whatsapp || "").replace(/,/g, "");
-            const email = String(c.email || "").replace(/,/g, "");
-            const obs = String(c.observacoes || "").replace(/,/g, " ").replace(/\n/g, " ");
+            // Converte para String e remove ; e quebras de linha para não quebrar o CSV
+            const nome = String(c.nome || "").replace(/;/g, " ");
+            const wpp = String(c.whatsapp || "").replace(/;/g, "");
+            const email = String(c.email || "").replace(/;/g, "");
+            const obs = String(c.observacoes || "").replace(/;/g, " ").replace(/\n/g, " ");
             
-            csvContent += `${nome},${wpp},${email},${obs}\n`;
+            csvContent += `${nome};${wpp};${email};${obs}\n`;
         });
 
         // Adiciona BOM para o Excel reconhecer acentos UTF-8
@@ -1268,6 +1268,13 @@ function processarImportacao(input) {
     const file = input.files[0];
     if(!file) return;
 
+    // Verificação de arquivo binário Excel
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        mostrarAviso("O navegador não lê arquivos .XLSX diretamente. Por favor, abra o arquivo no Excel e escolha 'Salvar como' > 'CSV (Separado por vírgulas)'.");
+        input.value = ''; // Limpa o input
+        return;
+    }
+
     const reader = new FileReader();
     
     reader.onload = function(e) {
@@ -1284,11 +1291,12 @@ function processarImportacao(input) {
         const delimiter = firstLine.includes(';') ? ';' : ',';
         
         // Simples parser de CSV
-        // Detecta cabeçalhos na primeira linha
-        const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/[\r"]/g, ''));
+        // Detecta cabeçalhos na primeira linha e remove caracteres estranhos (BOM, quotes)
+        const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/^["\ufeff]+|["\r]+$/g, ''));
         
         const idxNome = headers.findIndex(h => h.includes('nome'));
-        const idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular'));
+        // Melhora a detecção de coluna de telefone/whatsapp
+        const idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular') || h.includes('contato'));
         
         if(idxNome === -1 || idxWpp === -1) {
             mostrarAviso(`Erro: O arquivo deve ter colunas 'Nome' e 'Whatsapp'. (Separador detetado: '${delimiter}')`);
@@ -1301,23 +1309,28 @@ function processarImportacao(input) {
         for(let i = 1; i < lines.length; i++) {
             if(!lines[i].trim()) continue;
             
-            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/[\r"]/g, ''));
-            const nome = cols[idxNome];
-            const whatsapp = cols[idxWpp];
+            // Separa colunas e limpa aspas extras que o CSV pode ter
+            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+            
+            // Segurança se a linha estiver incompleta
+            const nome = cols[idxNome] || "";
+            const whatsapp = cols[idxWpp] || "";
             
             // Validações básicas
             if(nome && whatsapp) {
                 // Verifica duplicidade simples por telefone
-                const existe = clientesCache.find(c => c.whatsapp === whatsapp);
+                const existe = (typeof clientesCache !== 'undefined' ? clientesCache : []).find(c => c.whatsapp === whatsapp);
                 
                 if(!existe) {
                     // Adiciona ao cache local
                     // NOTA: Em um sistema real, aqui você chamaria a API para salvar
+                    if (typeof clientesCache === 'undefined') window.clientesCache = [];
+                    
                     clientesCache.push({
                         id_cliente: 'temp_' + Date.now() + Math.random(),
                         nome: nome,
                         whatsapp: whatsapp,
-                        email: headers.includes('email') ? cols[headers.indexOf('email')] : '',
+                        email: headers.includes('email') && headers.indexOf('email') < cols.length ? cols[headers.indexOf('email')] : '',
                         observacoes: 'Importado via Excel'
                     });
                     importadosCount++;
@@ -1327,15 +1340,22 @@ function processarImportacao(input) {
 
         if(importadosCount > 0) {
             // Ordena lista novamente
-            clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
+            if(typeof clientesCache !== 'undefined') {
+                clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
+            }
+            
+            // Limpa qualquer filtro de busca que possa estar ocultando os novos clientes
+            const buscaInput = document.getElementById('busca-cliente');
+            if(buscaInput) buscaInput.value = '';
+            
             // Atualiza UI se estiver na aba de clientes
             renderizarListaClientes();
             // Atualiza datalists
             atualizarDatalistClientes();
             
-            mostrarAviso(`${importadosCount} clientes importados com sucesso! Lembre-se que eles podem não estar salvos no banco de dados ainda.`);
+            mostrarAviso(`${importadosCount} clientes importados com sucesso!`);
         } else {
-            mostrarAviso("Nenhum cliente novo foi importado (verifique duplicados).");
+            mostrarAviso("Nenhum cliente novo importado (todos duplicados ou arquivo vazio).");
         }
         
         // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
