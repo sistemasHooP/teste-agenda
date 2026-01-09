@@ -6,7 +6,11 @@ const CACHE_KEY_PREFIX = 'minhaAgenda_';
 let currentUser = null;
 let currentProfId = null;
 let dataAtual = new Date(); // Data selecionada (foco)
-let servicosCache = [], agendamentosCache = [], clientesCache = [], pacotesCache = [], usuariosCache = [];
+let servicosCache = [];
+let agendamentosCache = [];
+let clientesCache = [];
+let pacotesCache = [];
+let usuariosCache = [];
 let itensPacoteTemp = [];
 let abaAtiva = 'agenda';
 let config = { 
@@ -20,7 +24,7 @@ let config = {
 };
 let agendamentosRaw = [];
 let isSyncing = false;
-let isSaving = false; // Nova flag para bloquear updates durante salvamento
+let isSaving = false; // Flag para bloquear updates durante salvamento
 let pollingInterval = null;
 
 // --- CACHE LOCAL ---
@@ -701,7 +705,27 @@ async function salvarEdicaoAgendamento(e) { e.preventDefault(); const btn = docu
 async function salvarNovoServico(e) { e.preventDefault(); const btn = document.getElementById('btn-salvar-servico'); const originalText = btn.innerText; setLoading(btn, true, originalText); const f = e.target; const fileInput = document.getElementById('input-imagem-servico'); let imagemUrl = ''; if (fileInput.files.length > 0) { btn.innerHTML = '<span class="spinner"></span> Enviando img...'; try { const formData = new FormData(); formData.append('image', fileInput.files[0]); const imgReq = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: 'POST', body: formData }); const imgRes = await imgReq.json(); if (imgRes.success) { imagemUrl = imgRes.data.url; } } catch (err) { console.error(err); } } try { await fetch(API_URL,{method:'POST',body:JSON.stringify({action:'createServico', nome_servico:f.nome_servico.value, valor_unitario:f.valor_unitario.value, duracao_minutos:f.duracao_minutos.value, cor_hex:document.getElementById('input-cor-selecionada').value, imagem_url: imagemUrl, online_booking: document.getElementById('check-online-booking').checked })}); fecharModal('modal-servico'); f.reset(); carregarServicos(); } catch(e){ mostrarAviso('Erro'); } finally { setLoading(btn, false, originalText); } }
 async function salvarEdicaoServico(e) { e.preventDefault(); const btn = document.getElementById('btn-salvar-edicao-servico'); const originalText = btn.innerText; setLoading(btn, true, originalText); const f = e.target; const fileInput = document.getElementById('edit-input-imagem-servico'); let imagemUrl = ''; if (fileInput.files.length > 0) { btn.innerHTML = '<span class="spinner"></span> Enviando img...'; try { const formData = new FormData(); formData.append('image', fileInput.files[0]); const imgReq = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: 'POST', body: formData }); const imgRes = await imgReq.json(); if (imgRes.success) { imagemUrl = imgRes.data.url; } } catch (err) { console.error(err); } } try { await fetch(API_URL, {method:'POST', body:JSON.stringify({ action: 'updateServico', id_servico: f.id_servico.value, nome_servico: f.nome_servico.value, valor_unitario: f.valor_unitario.value, duracao_minutos: f.duracao_minutos.value, cor_hex: f.cor_hex.value, online_booking: document.getElementById('edit-check-online-booking').checked, imagem_url: imagemUrl })}); fecharModal('modal-editar-servico'); carregarServicos(); } catch(e) { mostrarAviso('Erro'); } finally { setLoading(btn, false, originalText); } }
 function renderizarListaServicos() { const container = document.getElementById('lista-servicos'); container.innerHTML = ''; servicosCache.forEach(s => { const div = document.createElement('div'); div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center'; div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style="background-color: ${getCorServico(s)}">${s.nome_servico.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${s.nome_servico}</h4><p class="text-xs text-slate-500">${s.duracao_minutos} min • R$ ${parseFloat(s.valor_unitario).toFixed(2)}</p></div></div><button onclick="abrirModalEditarServico('${s.id_servico}')" class="text-slate-400 hover:text-blue-600"><i data-lucide="edit-2" class="w-5 h-5"></i></button>`; container.appendChild(div); }); lucide.createIcons(); }
-function renderizarListaPacotes() { const container = document.getElementById('lista-pacotes'); container.innerHTML = ''; if(!pacotesCache || pacotesCache.length === 0) { container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; return; } pacotesCache.forEach(p => { const div = document.createElement('div'); div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100'; div.innerHTML = `<div class="flex justify-between items-start mb-2"><div><h4 class="font-bold text-slate-800">${p.nome_cliente}</h4><p class="text-xs text-slate-500">${p.nome_servico}</p></div><span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">${p.qtd_restante}/${p.qtd_total}</span></div><div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(p.qtd_restante/p.qtd_total)*100}%"></div></div>`; container.appendChild(div); }); }
+
+function renderizarListaPacotes() { 
+    const container = document.getElementById('lista-pacotes'); 
+    container.innerHTML = ''; 
+    
+    // Filtro para mostrar apenas pacotes com saldo
+    const pacotesComSaldo = pacotesCache.filter(p => parseInt(p.qtd_restante) > 0);
+
+    if(!pacotesComSaldo || pacotesComSaldo.length === 0) { 
+        container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; 
+        return; 
+    } 
+    
+    pacotesComSaldo.forEach(p => { 
+        const div = document.createElement('div'); 
+        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100'; 
+        div.innerHTML = `<div class="flex justify-between items-start mb-2"><div><h4 class="font-bold text-slate-800">${p.nome_cliente}</h4><p class="text-xs text-slate-500">${p.nome_servico}</p></div><span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">${p.qtd_restante}/${p.qtd_total}</span></div><div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(p.qtd_restante/p.qtd_total)*100}%"></div></div>`; 
+        container.appendChild(div); 
+    }); 
+}
+
 function carregarServicos() { fetch(`${API_URL}?action=getServicos`).then(r=>r.json()).then(d=>{ servicosCache=d; renderizarListaServicos(); atualizarDatalistServicos(); }); }
 function carregarPacotes() { fetch(`${API_URL}?action=getPacotes`).then(r=>r.json()).then(d=>{ pacotesCache=d; renderizarListaPacotes(); }); }
 function carregarUsuarios() { fetch(`${API_URL}?action=getUsuarios`).then(r=>r.json()).then(d=>{ usuariosCache=d; renderizarListaUsuarios(); popularSelectsUsuarios(); }); }
