@@ -288,14 +288,56 @@ async function salvarAgendamentoOtimista(e) {
     fecharModal('modal-agendamento');
     const tempId = 'temp_' + Date.now(); const profId = (currentUser.nivel === 'admin' && document.getElementById('select-prof-modal').value) ? document.getElementById('select-prof-modal').value : currentUser.id_usuario;
     const novoItem = { id_agendamento: tempId, id_cliente: cliente ? cliente.id_cliente : 'novo', id_servico: servico.id_servico, data_agendamento: dataAg, hora_inicio: horaIni, hora_fim: calcularHoraFim(horaIni, servico.duracao_minutos), status: 'Agendado', nome_cliente: nomeCliente, id_profissional: profId, id_pacote_usado: document.getElementById('check-usar-pacote').checked ? document.getElementById('id-pacote-selecionado').value : '' };
+    
+    // START CHANGE: Atualização Otimista do Saldo do Pacote
+    const usarPacote = document.getElementById('check-usar-pacote').checked;
+    const idPacote = document.getElementById('id-pacote-selecionado').value;
+    if(usarPacote && idPacote) {
+        const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
+        if(pIndex > -1) {
+            // Decrementa saldo localmente
+            pacotesCache[pIndex].qtd_restante = Math.max(0, parseInt(pacotesCache[pIndex].qtd_restante) - 1);
+            saveToCache('pacotes', pacotesCache);
+        }
+    }
+    // END CHANGE
+
     agendamentosRaw.push(novoItem); saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual();
     showSyncIndicator(true);
+    
     try {
         const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'createAgendamento', nome_cliente: nomeCliente, id_cliente: novoItem.id_cliente, id_servico: novoItem.id_servico, data_agendamento: dataAg, hora_inicio: horaIni, usar_pacote_id: novoItem.id_pacote_usado, id_profissional: profId }) });
         const data = await res.json();
+        
+        // START CHANGE: Tratamento de Erro do Backend (ex: Saldo Insuficiente)
+        if (data.status === 'erro') {
+            throw new Error(data.mensagem);
+        }
+        // END CHANGE
+
         if (data.status === 'sucesso' && data.id_agendamento) { const idx = agendamentosRaw.findIndex(a => a.id_agendamento === tempId); if (idx !== -1) { agendamentosRaw[idx].id_agendamento = data.id_agendamento; if (data.id_cliente) agendamentosRaw[idx].id_cliente = data.id_cliente; saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual(); const modalIdInput = document.getElementById('id-agendamento-ativo'); if(modalIdInput && modalIdInput.value === tempId) { modalIdInput.value = data.id_agendamento; abrirModalDetalhes(data.id_agendamento); } } }
         showSyncIndicator(false);
-    } catch (err) { console.error("Erro ao salvar", err); agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId); saveToCache('agendamentos', agendamentosRaw); atualizarAgendaVisual(); mostrarAviso('Falha ao salvar agendamento. Tente novamente.'); showSyncIndicator(false); } f.reset();
+    } catch (err) { 
+        console.error("Erro ao salvar", err); 
+        agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId); 
+        saveToCache('agendamentos', agendamentosRaw); 
+        
+        // START CHANGE: Rollback do Saldo do Pacote em caso de erro
+        if(usarPacote && idPacote) {
+            const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
+            if(pIndex > -1) {
+                // Devolve o saldo localmente
+                pacotesCache[pIndex].qtd_restante = parseInt(pacotesCache[pIndex].qtd_restante) + 1;
+                saveToCache('pacotes', pacotesCache);
+            }
+        }
+        // END CHANGE
+
+        atualizarAgendaVisual(); 
+        mostrarAviso(err.message || 'Falha ao salvar agendamento.'); 
+        showSyncIndicator(false); 
+    } 
+    f.reset();
 }
 
 function prepararStatus(st, btnEl) { const id = document.getElementById('id-agendamento-ativo').value; const idPacote = document.getElementById('id-pacote-agendamento-ativo').value; const contentBotao = btnEl ? btnEl.innerHTML : '';
