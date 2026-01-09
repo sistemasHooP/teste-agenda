@@ -90,10 +90,8 @@
                 </div>
             </div>
             
-            <!-- Barra de Dias da Semana (Injetado via JS) -->
-            <div id="week-strip" class="week-strip">
-                <!-- Exemplo de item (gerado dinamicamente via app.js) -->
-            </div>
+            <!-- Barra de Dias da Semana -->
+            <div id="week-strip" class="week-strip"></div>
         </div>
 
         <!-- Área da Timeline -->
@@ -123,7 +121,7 @@
     <!-- 3. PACOTES -->
     <div id="tab-pacotes" class="tab-content admin-only">
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-bold text-slate-800">Pacotes Ativos</h2>
+            <h2 class="text-xl font-bold text-slate-800">Pacotes Vendidos</h2>
             <button onclick="abrirModalVenderPacote()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Vender</button>
         </div>
         <div id="lista-pacotes" class="space-y-3 pb-24">
@@ -161,7 +159,6 @@
                         <i data-lucide="clock" class="w-4 h-4 text-blue-600"></i> Horários de Funcionamento
                     </h3>
                     <div id="lista-horarios-semanais" class="space-y-3">
-                        <!-- Injetado via JS -->
                         <p class="text-center text-slate-400 py-4 text-sm">Carregando horários...</p>
                     </div>
                 </div>
@@ -181,21 +178,17 @@
                     </label>
                 </div>
                 
-                <!-- Inputs ocultos para manter compatibilidade com backend se necessário -->
                 <input type="hidden" id="cfg-abertura">
                 <input type="hidden" id="cfg-fechamento">
             </div>
 
             <!-- CFG MENSAGENS -->
             <div id="cfg-area-msg" class="space-y-6 hidden">
-                <!-- Template Lembrete -->
                 <div>
                     <label class="block text-sm text-slate-800 font-bold mb-1">Modelo de Lembrete</label>
                     <p class="text-xs text-slate-400 mb-2">Use: {cliente}, {data}, {hora}, {servico}</p>
                     <textarea id="cfg-lembrete-template" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none text-sm text-slate-600"></textarea>
                 </div>
-
-                <!-- Lista Mensagens Rápidas -->
                 <div>
                     <label class="block text-sm text-slate-800 font-bold mb-2">Mensagens Rápidas</label>
                     <div id="lista-msg-rapidas" class="space-y-2 mb-3"></div>
@@ -247,9 +240,7 @@
                 <h3 class="text-lg font-bold text-slate-800">Enviar Mensagem</h3>
                 <button onclick="fecharModal('modal-selecao-msg')"><i data-lucide="x" class="text-slate-400"></i></button>
             </div>
-            <div id="lista-selecao-msg" class="space-y-2 max-h-60 overflow-y-auto">
-                <!-- Itens gerados via JS -->
-            </div>
+            <div id="lista-selecao-msg" class="space-y-2 max-h-60 overflow-y-auto"></div>
         </div>
     </div>
 
@@ -421,13 +412,38 @@
         </div>
     </div>
 
-    <!-- 10. MODAL DETALHES PACOTE -->
+    <!-- 10. MODAL DETALHES PACOTE (ATUALIZADO) -->
     <div id="modal-detalhes-pacote" class="modal-overlay">
         <div class="modal-card">
-            <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold text-slate-800">Detalhes do Pacote</h3><button onclick="fecharModal('modal-detalhes-pacote')"><i data-lucide="x" class="text-slate-400"></i></button></div>
-            <div class="modal-tabs"><div class="modal-tab active" onclick="switchModalTab('saldos')">Saldos</div><div class="modal-tab" onclick="switchModalTab('historico')">Histórico</div></div>
+            <!-- Cabeçalho do Modal -->
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-bold text-slate-800">Detalhes do Pacote</h3>
+                <button onclick="fecharModal('modal-detalhes-pacote')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            
+            <!-- Informações Gerais da Transação -->
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4 text-sm space-y-1">
+                <p class="flex justify-between"><span class="text-slate-500">Transação:</span> <span id="pacote-info-id" class="font-mono font-bold text-slate-700">#---</span></p>
+                <p class="flex justify-between"><span class="text-slate-500">Valor Total:</span> <span id="pacote-info-valor" class="font-bold text-green-600">R$ 0,00</span></p>
+                <p class="flex justify-between"><span class="text-slate-500">Data Compra:</span> <span id="pacote-info-data" class="font-bold text-slate-700">--/--/----</span></p>
+            </div>
+
+            <!-- Abas de Navegação Interna -->
+            <div class="modal-tabs">
+                <div id="tab-btn-saldos" class="modal-tab active" onclick="switchModalTab('saldos')">Saldos</div>
+                <div id="tab-btn-historico" class="modal-tab" onclick="switchModalTab('historico')">Histórico</div>
+            </div>
+
+            <!-- Conteúdo das Abas -->
             <div id="tab-modal-saldos" class="modal-tab-content active space-y-3 max-h-60 overflow-y-auto"></div>
-            <div id="tab-modal-historico" class="modal-tab-content space-y-2 max-h-60 overflow-y-auto"><p class="text-center text-slate-400 text-sm">Carregando...</p></div>
+            <div id="tab-modal-historico" class="modal-tab-content space-y-2 max-h-60 overflow-y-auto">
+                <p class="text-center text-slate-400 text-sm">Carregando...</p>
+            </div>
+
+            <!-- Botão de Relatório -->
+            <button onclick="enviarRelatorioPacote()" class="w-full mt-6 py-3 bg-green-50 text-green-700 font-bold rounded-xl btn-anim flex items-center justify-center gap-2 border border-green-200">
+                <i data-lucide="message-circle" class="w-5 h-5"></i> Enviar Relatório
+            </button>
         </div>
     </div>
 
