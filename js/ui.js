@@ -612,7 +612,8 @@ function abrirModalEditarServico(id) {
 }
 
 function abrirModalDetalhes(id) { 
-    const ag = agendamentosCache.find(a => a.id_agendamento === id); if(!ag) return; 
+    // Ensure string comparison for safety
+    const ag = agendamentosCache.find(a => String(a.id_agendamento) === String(id)); if(!ag) return; 
     resetarBotoesModal();
     document.getElementById('id-agendamento-ativo').value = id; 
     const idPacote = ag.id_pacote_usado || ag.id_pacote || ''; 
@@ -1079,8 +1080,10 @@ function atualizarUIConfig() {
     
     document.getElementById('cfg-lembrete-template').value = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
     renderizarListaMsgRapidasConfig();
-
     renderizarListaHorariosSemanais();
+    
+    // Injeta a UI de Importação/Exportação dinamicamente
+    renderizarAreaImportacaoExportacao();
 }
 
 function renderizarListaHorariosSemanais() {
@@ -1173,6 +1176,154 @@ function adicionarMsgRapida() {
 function removerMsgRapida(idx) {
     config.mensagens_rapidas.splice(idx, 1);
     renderizarListaMsgRapidasConfig();
+}
+
+// ==========================================
+// IMPORTAÇÃO E EXPORTAÇÃO DE DADOS (EXCEL/CSV)
+// ==========================================
+
+function renderizarAreaImportacaoExportacao() {
+    const parent = document.getElementById('cfg-area-geral');
+    if(!parent) return;
+
+    // Verifica se já existe para não duplicar
+    if(document.getElementById('area-import-export')) return;
+
+    const div = document.createElement('div');
+    div.id = 'area-import-export';
+    div.className = 'mt-6 pt-6 border-t border-slate-100';
+    div.innerHTML = `
+        <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <i data-lucide="database" class="w-5 h-5 text-blue-600"></i> Dados dos Clientes
+        </h4>
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="exportarClientesCSV()" class="p-3 bg-green-50 text-green-700 font-bold rounded-xl text-sm border border-green-200 flex flex-col items-center justify-center gap-1 btn-anim hover:bg-green-100 transition-colors">
+                <i data-lucide="download" class="w-6 h-6 mb-1"></i>
+                Exportar Excel
+            </button>
+            <label class="p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-200 flex flex-col items-center justify-center gap-1 btn-anim cursor-pointer hover:bg-blue-100 transition-colors">
+                <i data-lucide="upload" class="w-6 h-6 mb-1"></i>
+                Importar Excel
+                <input type="file" id="input-import-csv" accept=".csv" class="hidden" onchange="processarImportacao(this)">
+            </label>
+        </div>
+        <p class="text-[10px] text-slate-400 mt-2 text-center">
+            Para importar: Use um arquivo .CSV separado por vírgulas.<br>
+            Colunas obrigatórias: <strong>Nome, Whatsapp</strong>
+        </p>
+    `;
+    parent.appendChild(div);
+    if(typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function exportarClientesCSV() {
+    if(!clientesCache || clientesCache.length === 0) {
+        mostrarAviso("Não há clientes para exportar.");
+        return;
+    }
+
+    // Cria o cabeçalho
+    let csvContent = "Nome,Whatsapp,Email,Observacoes\n";
+
+    // Adiciona os dados
+    clientesCache.forEach(c => {
+        // Trata campos nulos e remove quebras de linha que possam quebrar o CSV
+        const nome = (c.nome || "").replace(/,/g, " ");
+        const wpp = (c.whatsapp || "").replace(/,/g, "");
+        const email = (c.email || "").replace(/,/g, "");
+        const obs = (c.observacoes || "").replace(/,/g, " ").replace(/\n/g, " ");
+        
+        csvContent += `${nome},${wpp},${email},${obs}\n`;
+    });
+
+    // Adiciona BOM para o Excel reconhecer acentos UTF-8
+    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    // Cria link temporário para download
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "clientes_sistema.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function processarImportacao(input) {
+    const file = input.files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n');
+        
+        if(lines.length < 2) {
+            mostrarAviso("Arquivo vazio ou inválido.");
+            return;
+        }
+
+        // Simples parser de CSV (assume separação por vírgula)
+        // Detecta cabeçalhos na primeira linha
+        const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/[\r"]/g, ''));
+        
+        const idxNome = headers.findIndex(h => h.includes('nome'));
+        const idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular'));
+        
+        if(idxNome === -1 || idxWpp === -1) {
+            mostrarAviso("Erro: O arquivo deve ter colunas 'Nome' e 'Whatsapp'.");
+            return;
+        }
+
+        let importadosCount = 0;
+        
+        // Começa da linha 1 (ignora cabeçalho)
+        for(let i = 1; i < lines.length; i++) {
+            if(!lines[i].trim()) continue;
+            
+            const cols = lines[i].split(',').map(c => c.trim().replace(/[\r"]/g, ''));
+            const nome = cols[idxNome];
+            const whatsapp = cols[idxWpp];
+            
+            // Validações básicas
+            if(nome && whatsapp) {
+                // Verifica duplicidade simples por telefone
+                const existe = clientesCache.find(c => c.whatsapp === whatsapp);
+                
+                if(!existe) {
+                    // Adiciona ao cache local
+                    // NOTA: Em um sistema real, aqui você chamaria a API para salvar
+                    clientesCache.push({
+                        id_cliente: 'temp_' + Date.now() + Math.random(),
+                        nome: nome,
+                        whatsapp: whatsapp,
+                        email: headers.includes('email') ? cols[headers.indexOf('email')] : '',
+                        observacoes: 'Importado via Excel'
+                    });
+                    importadosCount++;
+                }
+            }
+        }
+
+        if(importadosCount > 0) {
+            // Ordena lista novamente
+            clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
+            // Atualiza UI se estiver na aba de clientes
+            renderizarListaClientes();
+            // Atualiza datalists
+            atualizarDatalistClientes();
+            
+            mostrarAviso(`${importadosCount} clientes importados com sucesso! Lembre-se que eles podem não estar salvos no banco de dados ainda.`);
+        } else {
+            mostrarAviso("Nenhum cliente novo foi importado (verifique duplicados).");
+        }
+        
+        // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
+        input.value = '';
+    };
+
+    reader.readAsText(file);
 }
 
 // ==========================================
