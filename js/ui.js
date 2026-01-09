@@ -1217,7 +1217,6 @@ function renderizarAreaImportacaoExportacao() {
 }
 
 function exportarClientesCSV() {
-    // Verificação de segurança para a variável global
     const lista = (typeof clientesCache !== 'undefined') ? clientesCache : [];
     
     if(!lista || lista.length === 0) {
@@ -1226,27 +1225,19 @@ function exportarClientesCSV() {
     }
 
     try {
-        // Cria o cabeçalho (usando ponto e vírgula para Excel PT-BR/PT-PT reconhecer automaticamente)
         let csvContent = "Nome;Whatsapp;Email;Observacoes\n";
 
-        // Adiciona os dados
         lista.forEach(c => {
-            if (!c) return; // Segurança contra itens nulos
-            
-            // Converte para String e remove ; e quebras de linha para não quebrar o CSV
+            if (!c) return; 
             const nome = String(c.nome || "").replace(/;/g, " ");
             const wpp = String(c.whatsapp || "").replace(/;/g, "");
             const email = String(c.email || "").replace(/;/g, "");
             const obs = String(c.observacoes || "").replace(/;/g, " ").replace(/\n/g, " ");
-            
             csvContent += `${nome};${wpp};${email};${obs}\n`;
         });
 
-        // Adiciona BOM para o Excel reconhecer acentos UTF-8
         const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        
-        // Cria link temporário para download
         const link = document.createElement("a");
         link.setAttribute("href", url);
         link.setAttribute("download", `clientes_${new Date().toISOString().slice(0,10)}.csv`);
@@ -1254,8 +1245,6 @@ function exportarClientesCSV() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        // Limpa a URL criada
         setTimeout(() => URL.revokeObjectURL(url), 100);
         
     } catch (erro) {
@@ -1268,7 +1257,6 @@ function processarImportacao(input) {
     const file = input.files[0];
     if(!file) return;
 
-    // Verificação de arquivo binário Excel
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
         mostrarAviso("O sistema aceita apenas arquivos .CSV. No Excel, vá em 'Salvar como' e escolha o formato 'CSV (Separado por vírgulas)'.");
         input.value = ''; 
@@ -1277,9 +1265,8 @@ function processarImportacao(input) {
 
     const reader = new FileReader();
     
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         const text = e.target.result;
-        // Normaliza quebras de linha para evitar problemas com \r
         const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
         
         if(lines.length < 2) {
@@ -1287,93 +1274,106 @@ function processarImportacao(input) {
             return;
         }
 
-        // Tenta detetar o separador na primeira linha
         const firstLine = lines[0];
         const delimiter = firstLine.includes(';') ? ';' : ',';
         
-        // Parser de cabeçalhos
         const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/^["\ufeff]+|["\r]+$/g, ''));
         
-        // Mapeamento de colunas
         let idxNome = headers.findIndex(h => h.includes('nome') || h.includes('name'));
         let idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular') || h.includes('fone') || h.includes('mobile'));
         let idxEmail = headers.findIndex(h => h.includes('email') || h.includes('e-mail'));
         
-        // Fallback: Se não achar pelo nome, tenta posições padrão (0=Nome, 1=Whatsapp) se o arquivo tiver poucas colunas
         if (idxNome === -1 && headers.length >= 1) idxNome = 0;
         if (idxWpp === -1 && headers.length >= 2) idxWpp = 1;
 
         if(idxNome === -1 || idxWpp === -1) {
-            mostrarAviso(`Não foi possível identificar as colunas 'Nome' e 'Whatsapp'. Verifique se o cabeçalho está correto. (Separador: '${delimiter}')`);
+            mostrarAviso(`Não foi possível identificar as colunas 'Nome' e 'Whatsapp'. (Separador: '${delimiter}')`);
             return;
         }
 
-        let importadosCount = 0;
+        let novosClientes = [];
         
-        // Garante que clientesCache existe
         if (typeof clientesCache === 'undefined') window.clientesCache = [];
 
-        // Começa da linha 1 (ignora cabeçalho)
         for(let i = 1; i < lines.length; i++) {
             if(!lines[i].trim()) continue;
             
-            // Separa colunas mantendo integridade se houver separadores dentro de aspas
-            const rowData = lines[i];
-            let cols = [];
-            
-            if (delimiter === ';') {
-                cols = rowData.split(';').map(c => c.trim().replace(/^"|"$/g, ''));
-            } else {
-                cols = rowData.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-            }
-            
+            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
             const nome = cols[idxNome] || "";
             let whatsapp = cols[idxWpp] || "";
             
-            // Validações básicas: precisa ter nome e algum contato
             if(nome && whatsapp) {
-                // Verifica duplicidade
                 const existe = clientesCache.find(c => c.whatsapp === whatsapp || c.nome.toLowerCase() === nome.toLowerCase());
                 
                 if(!existe) {
-                    clientesCache.push({
-                        id_cliente: 'temp_' + Date.now() + Math.random().toString(36).substr(2, 5),
+                    novosClientes.push({
+                        // id_cliente será gerado na função de salvar
                         nome: nome,
                         whatsapp: whatsapp,
                         email: (idxEmail > -1 && cols[idxEmail]) ? cols[idxEmail] : '',
                         observacoes: 'Importado via Planilha'
                     });
-                    importadosCount++;
                 }
             }
         }
 
-        if(importadosCount > 0) {
-            // Ordena lista
-            clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
+        if(novosClientes.length > 0) {
+            // Chama a função que gerencia o salvamento (API ou Local)
+            await salvarLoteClientes(novosClientes);
             
-            // Limpa filtro
+            // Limpa filtro e atualiza UI
             const buscaInput = document.getElementById('busca-cliente');
             if(buscaInput) buscaInput.value = '';
-            
-            // Atualiza dados
             atualizarDatalistClientes();
-            
-            // Vai para a aba de clientes para mostrar o resultado
             switchTab('clientes');
-            
-            // Força a renderização
             renderizarListaClientes();
             
-            mostrarAviso(`${importadosCount} clientes importados com sucesso!`);
+            mostrarAviso(`${novosClientes.length} clientes importados e processados!`);
         } else {
-            mostrarAviso("Nenhum cliente novo encontrado. Verifique se já estão cadastrados ou se a planilha está correta.");
+            mostrarAviso("Nenhum cliente novo encontrado (possíveis duplicados).");
         }
         
         input.value = '';
     };
 
     reader.readAsText(file);
+}
+
+// NOVA FUNÇÃO: Gerencia o salvamento no banco de dados
+async function salvarLoteClientes(listaNovos) {
+    // 1. Adiciona ao cache local para visualização imediata (UI Otimista)
+    listaNovos.forEach(c => {
+        // Se ainda não tiver ID, gera um temporário
+        if(!c.id_cliente) c.id_cliente = 'temp_' + Date.now() + Math.random().toString(36).substr(2, 5);
+        clientesCache.push(c);
+    });
+
+    // 2. Ordena o cache para a UI ficar bonita
+    clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
+
+    // 3. Tenta salvar no banco de dados se houver API conectada
+    // Se você tiver uma função global 'salvarClienteAPI', ela será chamada aqui.
+    if (typeof window.salvarClienteAPI === 'function') {
+        try {
+            console.log("Salvando lote no banco de dados...");
+            for (const cliente of listaNovos) {
+                await window.salvarClienteAPI(cliente);
+            }
+            console.log("Todos os clientes salvos com sucesso.");
+        } catch (error) {
+            console.error("Erro ao salvar no banco:", error);
+            mostrarAviso("Erro ao salvar no banco. Verifique a conexão.");
+        }
+    } else if (typeof window.db_criarCliente === 'function') {
+         // Tenta outro nome comum de função
+         for (const cliente of listaNovos) {
+            await window.db_criarCliente(cliente);
+        }
+    } else {
+        console.warn("ATENÇÃO: Função de salvar no banco não encontrada. Os dados estão apenas na memória.");
+        // AQUI É ONDE VOCÊ DEVE CONECTAR SUA API SE TIVER O NOME DELA
+        // Exemplo: firebase.firestore().collection('clientes').add(...)
+    }
 }
 
 // ==========================================
