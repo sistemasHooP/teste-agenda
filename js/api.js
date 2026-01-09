@@ -640,7 +640,6 @@ async function salvarEdicaoCliente(e) {
         const data = await res.json();
 
         if (data.status === 'sucesso') {
-            // Atualiza cache local
             const idx = clientesCache.findIndex(c => String(c.id_cliente) === String(f.id_cliente.value));
             if (idx !== -1) {
                 clientesCache[idx].nome = f.nome.value;
