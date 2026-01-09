@@ -1,3 +1,9 @@
+/**
+ * js/ui.js
+ * Lógica de Interface do Usuário para o Sistema de Agendamento.
+ * Contém funções globais para manipulação de modais, abas, renderização de agenda e listas.
+ */
+
 // Variável local para controlar qual cliente está sendo visualizado no histórico
 let currentHistoricoClienteId = null;
 
@@ -46,7 +52,7 @@ function toggleMenu() {
         menu.classList.add('open');
         overlay.classList.add('open');
         
-        if(currentUser) {
+        if(typeof currentUser !== 'undefined' && currentUser) {
             document.getElementById('menu-user-name').innerText = currentUser.nome;
             document.getElementById('menu-user-email').innerText = currentUser.email;
         }
@@ -57,7 +63,7 @@ function toggleMenu() {
 // NAVEGAÇÃO E ABAS
 // ==========================================
 function switchTab(t, el) { 
-    abaAtiva = t; 
+    if (typeof abaAtiva !== 'undefined') abaAtiva = t; 
     
     document.querySelectorAll('.menu-item').forEach(i=>i.classList.remove('active'));
     if(el) el.classList.add('active');
@@ -73,18 +79,21 @@ function switchTab(t, el) {
         'equipa': 'Equipe',
         'config': 'Configurações'
     };
-    document.getElementById('header-title').innerText = titles[t] || 'Minha Agenda';
+    const headerTitle = document.getElementById('header-title');
+    if (headerTitle) headerTitle.innerText = titles[t] || 'Minha Agenda';
 
     const fab = document.getElementById('main-fab');
-    if (t === 'config') fab.style.display = 'none';
-    else {
-        fab.style.display = 'flex';
-        fab.classList.remove('btn-anim');
-        void fab.offsetWidth; 
-        fab.classList.add('btn-anim');
+    if (fab) {
+        if (t === 'config') fab.style.display = 'none';
+        else {
+            fab.style.display = 'flex';
+            fab.classList.remove('btn-anim');
+            void fab.offsetWidth; 
+            fab.classList.add('btn-anim');
+        }
     }
     
-    if (t === 'pacotes') carregarPacotes(); 
+    if (t === 'pacotes' && typeof carregarPacotes === 'function') carregarPacotes(); 
     if (t === 'clientes') renderizarListaClientes();
     if (t === 'config') atualizarUIConfig();
     if (t === 'agenda') {
@@ -115,11 +124,14 @@ function switchConfigTab(tab) {
 }
 
 function acaoFab() { 
-    if(abaAtiva==='servicos') abrirModalServico(); 
-    else if(abaAtiva==='agenda') abrirModalAgendamento(); 
-    else if(abaAtiva==='clientes') abrirModalCliente();
-    else if(abaAtiva==='pacotes') abrirModalVenderPacote(); 
-    else if(abaAtiva==='equipa') abrirModalUsuario(); 
+    // Verifica se abaAtiva existe, senão tenta inferir ou usa default
+    const aba = (typeof abaAtiva !== 'undefined') ? abaAtiva : 'agenda';
+
+    if(aba==='servicos') abrirModalServico(); 
+    else if(aba==='agenda') abrirModalAgendamento(); 
+    else if(aba==='clientes') abrirModalCliente();
+    else if(aba==='pacotes') abrirModalVenderPacote(); 
+    else if(aba==='equipa') abrirModalUsuario(); 
 }
 
 // ==========================================
@@ -194,12 +206,20 @@ function renderizarCalendarioSemanal() {
 }
 
 function mudarProfissionalAgenda() { 
-    currentProfId = document.getElementById('select-profissional-agenda').value; 
-    atualizarAgendaVisual(); 
+    const select = document.getElementById('select-profissional-agenda');
+    if (select && typeof currentProfId !== 'undefined') {
+        currentProfId = select.value; 
+        atualizarAgendaVisual(); 
+    }
 }
 
 function atualizarAgendaVisual() {
-    if (!agendamentosRaw) return; 
+    if (typeof agendamentosRaw === 'undefined' || !agendamentosRaw) return; 
+    
+    // Fallback se currentProfId ou currentUser não estiverem definidos
+    if (typeof currentProfId === 'undefined') window.currentProfId = '';
+    if (typeof currentUser === 'undefined') return;
+
     const filtroId = String(currentProfId);
     
     agendamentosCache = agendamentosRaw.filter(a => { 
@@ -221,12 +241,12 @@ function renderizarGrade() {
     const diaIndex = dataAtual.getDay(); 
     let horarioDia = null;
     
-    if (config.horarios_semanais && Array.isArray(config.horarios_semanais)) {
+    if (typeof config !== 'undefined' && config.horarios_semanais && Array.isArray(config.horarios_semanais)) {
         horarioDia = config.horarios_semanais.find(h => parseInt(h.dia) === diaIndex);
     }
 
-    let abertura = config.abertura;
-    let fechamento = config.fechamento;
+    let abertura = (typeof config !== 'undefined') ? config.abertura : '08:00';
+    let fechamento = (typeof config !== 'undefined') ? config.fechamento : '19:00';
     let isDiaFechado = false;
 
     if (horarioDia) {
@@ -249,7 +269,7 @@ function renderizarGrade() {
                     <button onclick="abrirModalAgendamento()" class="mt-4 text-blue-600 text-sm font-bold hover:underline">Agendar mesmo assim</button>
                 </div>
             `;
-            lucide.createIcons();
+            if(typeof lucide !== 'undefined') lucide.createIcons();
             return;
         }
         abertura = config.abertura;
@@ -260,7 +280,7 @@ function renderizarGrade() {
     const [hF, mF] = fechamento.split(':').map(Number); 
     const startMin = hA*60 + mA; 
     const endMin = hF*60 + mF; 
-    const interval = parseInt(config.intervalo_minutos) || 60; 
+    const interval = (typeof config !== 'undefined' && parseInt(config.intervalo_minutos)) || 60; 
 
     for(let m = startMin; m < endMin; m += interval) { 
         const hSlot = Math.floor(m/60); 
@@ -288,12 +308,12 @@ function renderizarGrade() {
                     dur = endMin - start;
                 }
             } else {
-                const svc = servicosCache.find(s => String(s.id_servico) === String(a.id_servico)); 
+                const svc = (typeof servicosCache !== 'undefined') ? servicosCache.find(s => String(s.id_servico) === String(a.id_servico)) : null; 
                 dur = svc ? parseInt(svc.duracao_minutos) : 60; 
             }
             if (dur <= 0) dur = 60;
 
-            const svc = servicosCache.find(s => String(s.id_servico) === String(a.id_servico)); 
+            const svc = (typeof servicosCache !== 'undefined') ? servicosCache.find(s => String(s.id_servico) === String(a.id_servico)) : null; 
             return { ...a, start, end: start + dur, dur, svc }; 
         })
         .sort((a,b) => a.start - b.start);
@@ -340,8 +360,9 @@ function renderizarGrade() {
                 card.style.color = '#475569';
                 card.innerHTML = `<div class="flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3"></i> <span class="font-bold text-[10px] truncate">${ev.nome_cliente || 'Bloqueado'}</span></div>`;
             } else {
-                const color = getCorServico(ev.svc); 
-                card.style.backgroundColor = hexToRgba(color, 0.15); 
+                const color = (typeof getCorServico === 'function') ? getCorServico(ev.svc) : '#3b82f6'; 
+                const hexToRgbaFunc = (typeof hexToRgba === 'function') ? hexToRgba : (c, o) => c;
+                card.style.backgroundColor = hexToRgbaFunc(color, 0.15); 
                 card.style.borderLeftColor = color; 
                 card.style.color = '#1e293b'; 
                 
@@ -374,7 +395,7 @@ function renderizarListaClientes(filtro = '') {
     container.innerHTML = '';
     
     const termo = filtro.toLowerCase();
-    const filtrados = clientesCache.filter(c => 
+    const filtrados = (typeof clientesCache !== 'undefined' ? clientesCache : []).filter(c => 
         c.nome.toLowerCase().includes(termo) || 
         (c.whatsapp && c.whatsapp.includes(termo)) ||
         (c.email && c.email.toLowerCase().includes(termo))
@@ -407,7 +428,7 @@ function renderizarListaClientes(filtro = '') {
         `;
         container.appendChild(div);
     });
-    lucide.createIcons();
+    if(typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function filtrarListaClientes() {
@@ -464,6 +485,8 @@ function renderizarItensHistorico(lista) {
         return;
     }
 
+    const fmtData = (typeof formatarDataBr === 'function') ? formatarDataBr : (d) => d;
+
     lista.forEach(h => {
         const servico = servicosCache.find(s => String(s.id_servico) === String(h.id_servico));
         const nomeServico = servico ? servico.nome_servico : (h.id_servico === 'BLOQUEIO' ? 'Bloqueio' : 'Serviço Removido');
@@ -479,7 +502,7 @@ function renderizarItensHistorico(lista) {
             <div class="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-white"></div>
             <div class="w-full">
                 <div class="flex justify-between items-start mb-1">
-                    <span class="text-xs font-bold text-slate-400">${formatarDataBr(h.data_agendamento)}</span>
+                    <span class="text-xs font-bold text-slate-400">${fmtData(h.data_agendamento)}</span>
                     <span class="text-[10px] font-bold uppercase ${statusCor} bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${h.status}</span>
                 </div>
                 <p class="font-bold text-slate-700 text-sm leading-tight mb-0.5">${nomeServico}</p>
@@ -494,16 +517,18 @@ function renderizarItensHistorico(lista) {
 // MODAIS - ABERTURA E FECHO
 // ==========================================
 function fecharModal(id) { 
-    document.getElementById(id).classList.remove('open'); 
+    const el = document.getElementById(id);
+    if(el) el.classList.remove('open'); 
     if(id==='modal-agendamento') document.getElementById('area-pacote-info')?.classList.add('hidden'); 
 }
 
 function abrirModalAgendamento(h) { 
     document.getElementById('modal-agendamento').classList.add('open'); 
-    document.getElementById('input-data-modal').value = getLocalISODate(dataAtual); // USANDO DATA LOCAL
+    const inputData = document.getElementById('input-data-modal');
+    if (inputData) inputData.value = getLocalISODate(dataAtual); // USANDO DATA LOCAL
     if(h) document.getElementById('input-hora-modal').value = h; 
     
-    if(currentUser.nivel==='admin'){ 
+    if(typeof currentUser !== 'undefined' && currentUser.nivel==='admin'){ 
         document.getElementById('div-select-prof-modal').classList.remove('hidden'); 
         document.getElementById('select-prof-modal').value=currentProfId; 
     } else { 
@@ -550,7 +575,7 @@ function abrirModalEditarUsuario(id) {
 }
 
 function abrirModalVenderPacote() { 
-    itensPacoteTemp=[]; 
+    if (typeof itensPacoteTemp !== 'undefined') itensPacoteTemp=[]; 
     atualizarListaVisualPacote(); 
     document.getElementById('input-servico-pacote-nome').value=''; 
     document.getElementById('valor-total-pacote').value=''; 
@@ -598,10 +623,11 @@ function abrirModalDetalhes(id) {
     const nomeCliente = ag.nome_cliente || ag.observacoes || 'Cliente'; 
     const isConcluido = ag.status === 'Concluido';
     const isCancelado = ag.status === 'Cancelado';
+    const fmtData = (typeof formatarDataBr === 'function') ? formatarDataBr : (d) => d;
 
     document.getElementById('detalhe-cliente').innerText = isBloqueio ? (ag.observacoes || 'Bloqueio') : nomeCliente;
     document.getElementById('detalhe-servico').innerText = isBloqueio ? 'Horário Bloqueado' : (servico ? servico.nome_servico : 'Serviço');
-    document.getElementById('detalhe-data').innerText = formatarDataBr(ag.data_agendamento);
+    document.getElementById('detalhe-data').innerText = fmtData(ag.data_agendamento);
     document.getElementById('detalhe-hora').innerText = `${ag.hora_inicio} - ${ag.hora_fim}`;
     
     const badge = document.getElementById('detalhe-status-badge');
@@ -667,7 +693,7 @@ function abrirModalDetalhes(id) {
     }
     
     document.getElementById('modal-detalhes').classList.add('open'); 
-    lucide.createIcons(); 
+    if(typeof lucide !== 'undefined') lucide.createIcons(); 
 }
 
 function copiarResumoAgendamento() {
@@ -677,8 +703,9 @@ function copiarResumoAgendamento() {
 
     const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico));
     const nomeServico = servico ? servico.nome_servico : 'Serviço';
+    const fmtData = (typeof formatarDataBr === 'function') ? formatarDataBr : (d) => d;
     
-    const texto = `📅 Agendamento\n👤 ${ag.nome_cliente}\n✂️ ${nomeServico}\n🗓️ ${formatarDataBr(ag.data_agendamento)}\n⏰ ${ag.hora_inicio}`;
+    const texto = `📅 Agendamento\n👤 ${ag.nome_cliente}\n✂️ ${nomeServico}\n🗓️ ${fmtData(ag.data_agendamento)}\n⏰ ${ag.hora_inicio}`;
     
     navigator.clipboard.writeText(texto).then(() => {
         mostrarAviso("Resumo copiado para a área de transferência!");
@@ -736,26 +763,30 @@ function prepararStatus(st, btnEl) {
 
 function renderizarListaServicos() { 
     const container = document.getElementById('lista-servicos'); 
+    if(!container) return;
     container.innerHTML = ''; 
-    servicosCache.forEach(s => { 
+    (typeof servicosCache !== 'undefined' ? servicosCache : []).forEach(s => { 
         const div = document.createElement('div'); 
         div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center'; 
         div.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style="background-color: ${getCorServico(s)}">${s.nome_servico.charAt(0)}</div><div><h4 class="font-bold text-slate-800">${s.nome_servico}</h4><p class="text-xs text-slate-500">${s.duracao_minutos} min • R$ ${parseFloat(s.valor_unitario).toFixed(2)}</p></div></div><button onclick="abrirModalEditarServico('${s.id_servico}')" class="text-slate-400 hover:text-blue-600"><i data-lucide="edit-2" class="w-5 h-5"></i></button>`; 
         container.appendChild(div); 
     }); 
-    lucide.createIcons(); 
+    if(typeof lucide !== 'undefined') lucide.createIcons(); 
 }
 
 // Update renderizarListaPacotes
 function renderizarListaPacotes() {
     const container = document.getElementById('lista-pacotes');
+    if(!container) return;
     container.innerHTML = '';
     
-    if(!pacotesCache || pacotesCache.length === 0) {
+    if(typeof pacotesCache === 'undefined' || !pacotesCache || pacotesCache.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>';
         return;
     }
     
+    const fmtData = (typeof formatarDataBr === 'function') ? formatarDataBr : (d) => d;
+
     pacotesCache.forEach(p => {
         const div = document.createElement('div');
         div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 mb-3 cursor-pointer hover:bg-slate-50 transition-colors';
@@ -776,7 +807,7 @@ function renderizarListaPacotes() {
             <div class="w-full bg-slate-100 rounded-full h-1.5 mb-1">
                 <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${percent}%"></div>
             </div>
-            <p class="text-[10px] text-right text-slate-400">Validade: ${formatarDataBr(p.validade) || 'Indefinida'}</p>
+            <p class="text-[10px] text-right text-slate-400">Validade: ${fmtData(p.validade) || 'Indefinida'}</p>
         `;
         container.appendChild(div);
     });
@@ -791,6 +822,7 @@ function abrirDetalhesPacote(idPacote) {
     // Tab Saldos
     const divSaldos = document.getElementById('tab-modal-saldos');
     const percent = (p.qtd_restante / p.qtd_total) * 100;
+    const fmtData = (typeof formatarDataBr === 'function') ? formatarDataBr : (d) => d;
     
     divSaldos.innerHTML = `
         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center mb-4">
@@ -805,11 +837,11 @@ function abrirDetalhesPacote(idPacote) {
             </div>
             <div class="flex justify-between text-sm">
                 <span class="text-slate-500">Comprado em:</span>
-                <span class="font-bold text-slate-700">${formatarDataBr(p.data_compra)}</span>
+                <span class="font-bold text-slate-700">${fmtData(p.data_compra)}</span>
             </div>
             <div class="flex justify-between text-sm">
                 <span class="text-slate-500">Validade:</span>
-                <span class="font-bold text-slate-700">${formatarDataBr(p.validade) || 'Indefinida'}</span>
+                <span class="font-bold text-slate-700">${fmtData(p.validade) || 'Indefinida'}</span>
             </div>
         </div>
     `;
@@ -848,7 +880,7 @@ function abrirDetalhesPacote(idPacote) {
             
             row.innerHTML = `
                 <div>
-                    <p class="font-bold text-slate-700 text-sm">${formatarDataBr(u.data_agendamento)}</p>
+                    <p class="font-bold text-slate-700 text-sm">${fmtData(u.data_agendamento)}</p>
                     <p class="text-xs text-slate-400">${u.hora_inicio}</p>
                 </div>
                 <span class="text-xs font-bold uppercase ${statusColor}">${u.status}</span>
@@ -858,15 +890,16 @@ function abrirDetalhesPacote(idPacote) {
     }
 
     modal.classList.add('open');
-    lucide.createIcons();
+    if(typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function gerarRelatorioPacote(pacote, usos) {
+    const fmtData = (typeof formatarDataBr === 'function') ? formatarDataBr : (d) => d;
     let texto = `📋 *RELATÓRIO DE PACOTE*\n\n`;
     texto += `👤 Cliente: ${pacote.nome_cliente}\n`;
     texto += `📦 Serviço: ${pacote.nome_servico}\n`;
     texto += `📊 Saldo: ${pacote.qtd_restante} de ${pacote.qtd_total}\n`;
-    texto += `📅 Validade: ${formatarDataBr(pacote.validade) || 'Indefinida'}\n\n`;
+    texto += `📅 Validade: ${fmtData(pacote.validade) || 'Indefinida'}\n\n`;
     
     texto += `*HISTÓRICO DE USO:*\n`;
     
@@ -878,7 +911,7 @@ function gerarRelatorioPacote(pacote, usos) {
         });
 
         usosCronologico.forEach((u, i) => {
-            texto += `${i+1}. ${formatarDataBr(u.data_agendamento)} às ${u.hora_inicio} - ${u.status}\n`;
+            texto += `${i+1}. ${fmtData(u.data_agendamento)} às ${u.hora_inicio} - ${u.status}\n`;
         });
     }
     
@@ -894,8 +927,9 @@ function gerarRelatorioPacote(pacote, usos) {
 
 function renderizarListaUsuarios() { 
     const container = document.getElementById('lista-usuarios'); 
+    if(!container) return;
     container.innerHTML = ''; 
-    usuariosCache.forEach(u => {
+    (typeof usuariosCache !== 'undefined' ? usuariosCache : []).forEach(u => {
         const div = document.createElement('div');
         div.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center";
         
@@ -918,48 +952,52 @@ function renderizarListaUsuarios() {
         `;
         container.appendChild(div);
     });
-    lucide.createIcons();
+    if(typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function popularSelectsUsuarios() { 
     const selectHeader = document.getElementById('select-profissional-agenda'); 
-    selectHeader.innerHTML = ''; 
-    const optMe = document.createElement('option'); 
-    optMe.value = currentUser.id_usuario; 
-    optMe.text = "Minha Agenda"; 
-    selectHeader.appendChild(optMe); 
-    
-    usuariosCache.forEach(u => { 
-        if (u.id_usuario !== currentUser.id_usuario) { 
-            const opt = document.createElement('option'); 
-            opt.value = u.id_usuario; 
-            opt.text = u.nome; 
-            selectHeader.appendChild(opt); 
-        } 
-    }); 
+    if (selectHeader) {
+        selectHeader.innerHTML = ''; 
+        const optMe = document.createElement('option'); 
+        optMe.value = currentUser.id_usuario; 
+        optMe.text = "Minha Agenda"; 
+        selectHeader.appendChild(optMe); 
+        
+        usuariosCache.forEach(u => { 
+            if (u.id_usuario !== currentUser.id_usuario) { 
+                const opt = document.createElement('option'); 
+                opt.value = u.id_usuario; 
+                opt.text = u.nome; 
+                selectHeader.appendChild(opt); 
+            } 
+        }); 
+    }
     
     const selectModal = document.getElementById('select-prof-modal'); 
-    selectModal.innerHTML = ''; 
-    const optMeModal = document.createElement('option'); 
-    optMeModal.value = currentUser.id_usuario; 
-    optMeModal.text = currentUser.nome + " (Eu)"; 
-    selectModal.appendChild(optMeModal); 
-    
-    usuariosCache.forEach(u => { 
-        if (u.id_usuario !== currentUser.id_usuario) { 
-            const opt = document.createElement('option'); 
-            opt.value = u.id_usuario; 
-            opt.text = u.nome; 
-            selectModal.appendChild(opt); 
-        } 
-    }); 
+    if(selectModal) {
+        selectModal.innerHTML = ''; 
+        const optMeModal = document.createElement('option'); 
+        optMeModal.value = currentUser.id_usuario; 
+        optMeModal.text = currentUser.nome + " (Eu)"; 
+        selectModal.appendChild(optMeModal); 
+        
+        usuariosCache.forEach(u => { 
+            if (u.id_usuario !== currentUser.id_usuario) { 
+                const opt = document.createElement('option'); 
+                opt.value = u.id_usuario; 
+                opt.text = u.nome; 
+                selectModal.appendChild(opt); 
+            } 
+        }); 
+    }
 }
 
 function atualizarDatalistServicos() { 
     const dl = document.getElementById('lista-servicos-datalist'); 
     if(dl) { 
         dl.innerHTML = ''; 
-        servicosCache.forEach(i=>{ const o=document.createElement('option'); o.value=i.nome_servico; dl.appendChild(o); }); 
+        (typeof servicosCache !== 'undefined' ? servicosCache : []).forEach(i=>{ const o=document.createElement('option'); o.value=i.nome_servico; dl.appendChild(o); }); 
     } 
 }
 
@@ -967,14 +1005,16 @@ function atualizarDatalistClientes() {
     const dl = document.getElementById('lista-clientes'); 
     if(dl) { 
         dl.innerHTML = ''; 
-        clientesCache.forEach(c=>{ const o=document.createElement('option'); o.value=c.nome; dl.appendChild(o); }); 
+        (typeof clientesCache !== 'undefined' ? clientesCache : []).forEach(c=>{ const o=document.createElement('option'); o.value=c.nome; dl.appendChild(o); }); 
     } 
 }
 
 function renderizarColorPicker() { 
     const c=document.getElementById('color-picker-container'); 
+    if(!c) return;
     c.innerHTML=''; 
-    PALETA_CORES.forEach((cor,i)=>{
+    const colors = (typeof PALETA_CORES !== 'undefined') ? PALETA_CORES : ['#3b82f6'];
+    colors.forEach((cor,i)=>{
         const d=document.createElement('div');
         d.className=`color-option ${i===4?'selected':''}`;
         d.style.backgroundColor=cor;
@@ -989,8 +1029,10 @@ function renderizarColorPicker() {
 
 function renderizarColorPickerEdicao() { 
     const c=document.getElementById('edit-color-picker-container'); 
+    if(!c) return;
     c.innerHTML=''; 
-    PALETA_CORES.forEach((cor,i)=>{
+    const colors = (typeof PALETA_CORES !== 'undefined') ? PALETA_CORES : ['#3b82f6'];
+    colors.forEach((cor,i)=>{
         const d=document.createElement('div');
         d.className=`color-option ${i===4?'selected':''}`;
         d.style.backgroundColor=cor;
@@ -1009,7 +1051,8 @@ function renderizarColorPickerUsuarioEdicao() {
     c.innerHTML = '';
     const current = document.getElementById('edit-user-color-input').value;
     
-    PALETA_CORES.forEach((cor) => {
+    const colors = (typeof PALETA_CORES !== 'undefined') ? PALETA_CORES : ['#3b82f6'];
+    colors.forEach((cor) => {
         const d = document.createElement('div');
         d.className = `color-option ${cor === current ? 'selected' : ''}`;
         d.style.backgroundColor = cor;
@@ -1027,6 +1070,7 @@ function renderizarColorPickerUsuarioEdicao() {
 // ==========================================
 
 function atualizarUIConfig() {
+    if(typeof config === 'undefined') return;
     document.getElementById('cfg-abertura').value = config.abertura;
     document.getElementById('cfg-fechamento').value = config.fechamento;
     document.getElementById('cfg-intervalo').value = config.intervalo_minutos;
@@ -1099,6 +1143,7 @@ function atualizarHorarioDia(index, field, value) {
 
 function renderizarListaMsgRapidasConfig() {
     const div = document.getElementById('lista-msg-rapidas');
+    if(!div) return;
     div.innerHTML = '';
     if(!config.mensagens_rapidas) config.mensagens_rapidas = [];
     
@@ -1111,7 +1156,7 @@ function renderizarListaMsgRapidasConfig() {
         `;
         div.appendChild(item);
     });
-    lucide.createIcons();
+    if(typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function adicionarMsgRapida() {
@@ -1147,6 +1192,7 @@ function adicionarItemAoPacote() {
     } 
     
     const subtotal = (parseFloat(servico.valor_unitario || 0) * qtd); 
+    if(typeof itensPacoteTemp === 'undefined') itensPacoteTemp = [];
     itensPacoteTemp.push({ 
         id_servico: servico.id_servico, 
         nome_servico: servico.nome_servico, 
@@ -1164,7 +1210,7 @@ function adicionarItemAoPacote() {
 function atualizarListaVisualPacote() { 
     const container = document.getElementById('lista-itens-pacote'); 
     container.innerHTML = ''; 
-    if(itensPacoteTemp.length === 0) { 
+    if(typeof itensPacoteTemp === 'undefined' || itensPacoteTemp.length === 0) { 
         container.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Nenhum item adicionado.</p>'; 
         return; 
     } 
@@ -1175,7 +1221,7 @@ function atualizarListaVisualPacote() {
         div.innerHTML = ` <div class="flex-1"> <div class="flex justify-between items-center"> <span class="font-medium text-slate-700">${item.qtd}x ${item.nome_servico}</span> <span class="text-xs text-slate-500 font-medium ml-2">= ${subtotalFmt}</span> </div> </div> <button type="button" onclick="removerItemPacote(${index})" class="ml-3 text-red-400 hover:text-red-600 btn-anim"><i data-lucide="trash-2" class="w-4 h-4"></i></button> `; 
         container.appendChild(div); 
     }); 
-    lucide.createIcons(); 
+    if(typeof lucide !== 'undefined') lucide.createIcons(); 
 }
 
 function removerItemPacote(index) { 
@@ -1185,6 +1231,7 @@ function removerItemPacote(index) {
 }
 
 function atualizarTotalSugerido() { 
+    if(typeof itensPacoteTemp === 'undefined') return;
     const total = itensPacoteTemp.reduce((acc, item) => acc + item.subtotal, 0); 
     document.getElementById('valor-total-pacote').value = total.toFixed(2); 
 }
@@ -1202,12 +1249,12 @@ function verificarPacoteDisponivel() {
     
     if(!nomeCliente || !nomeServico) return; 
     
-    const cliente = clientesCache.find(c => c.nome.toLowerCase() === nomeCliente.toLowerCase()); 
-    const servico = servicosCache.find(s => s.nome_servico.toLowerCase() === nomeServico.toLowerCase()); 
+    const cliente = (typeof clientesCache !== 'undefined' ? clientesCache : []).find(c => c.nome.toLowerCase() === nomeCliente.toLowerCase()); 
+    const servico = (typeof servicosCache !== 'undefined' ? servicosCache : []).find(s => s.nome_servico.toLowerCase() === nomeServico.toLowerCase()); 
     
     if(!cliente || !servico) return; 
     
-    const pacote = pacotesCache.find(p => String(p.id_cliente) === String(cliente.id_cliente) && String(p.id_servico) === String(servico.id_servico) && parseInt(p.qtd_restante) > 0); 
+    const pacote = (typeof pacotesCache !== 'undefined' ? pacotesCache : []).find(p => String(p.id_cliente) === String(cliente.id_cliente) && String(p.id_servico) === String(servico.id_servico) && parseInt(p.qtd_restante) > 0); 
     
     if(pacote) { 
         areaInfo.classList.remove('hidden'); 
@@ -1231,17 +1278,21 @@ function abrirDetalhesPacote(grupo) {
 function enviarLembrete() {
     const id = document.getElementById('id-agendamento-ativo').value;
     const ag = agendamentosCache.find(a => a.id_agendamento === id);
-    const numero = getWhatsappCliente(id);
+    if (!ag) return;
+    
+    const getWhatsappFunc = (typeof getWhatsappCliente === 'function') ? getWhatsappCliente : (id) => null;
+    const numero = getWhatsappFunc(id);
     
     if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
     
     const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico));
     const nomeServico = servico ? servico.nome_servico : 'seu horário';
+    const fmtData = (typeof formatarDataBr === 'function') ? formatarDataBr : (d) => d;
     
     let texto = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
     
     texto = texto.replace('{cliente}', ag.nome_cliente)
-                .replace('{data}', formatarDataBr(ag.data_agendamento))
+                .replace('{data}', fmtData(ag.data_agendamento))
                 .replace('{hora}', ag.hora_inicio)
                 .replace('{servico}', nomeServico);
     
@@ -1250,7 +1301,9 @@ function enviarLembrete() {
 
 function abrirSelecaoMsgRapida() {
     const id = document.getElementById('id-agendamento-ativo').value;
-    const numero = getWhatsappCliente(id);
+    const getWhatsappFunc = (typeof getWhatsappCliente === 'function') ? getWhatsappCliente : (id) => null;
+    const numero = getWhatsappFunc(id);
+
     if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
 
     const lista = document.getElementById('lista-selecao-msg');
@@ -1275,7 +1328,9 @@ function abrirSelecaoMsgRapida() {
 
 function abrirChatDireto() {
     const id = document.getElementById('id-agendamento-ativo').value;
-    const numero = getWhatsappCliente(id);
+    const getWhatsappFunc = (typeof getWhatsappCliente === 'function') ? getWhatsappCliente : (id) => null;
+    const numero = getWhatsappFunc(id);
+    
     if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
     window.open(`https://wa.me/${numero}`, '_blank');
 }
@@ -1285,7 +1340,8 @@ function abrirChatDireto() {
 // ==========================================
 
 function mostrarAviso(msg) { 
-    document.getElementById('aviso-msg').innerText = msg; 
+    const el = document.getElementById('aviso-msg');
+    if(el) el.innerText = msg; 
     document.getElementById('modal-aviso').classList.add('open'); 
 }
 
@@ -1328,6 +1384,7 @@ function setLoading(btn, l, t) {
 }
 
 function showSyncIndicator(show) { 
-    isSyncing = show; 
-    document.getElementById('sync-indicator').style.display = show ? 'flex' : 'none'; 
+    if(typeof isSyncing !== 'undefined') isSyncing = show; 
+    const ind = document.getElementById('sync-indicator');
+    if(ind) ind.style.display = show ? 'flex' : 'none'; 
 }
