@@ -1208,7 +1208,7 @@ function renderizarAreaImportacaoExportacao() {
             </label>
         </div>
         <p class="text-[10px] text-slate-400 mt-2 text-center">
-            Para importar: Use um arquivo .CSV separado por vírgulas.<br>
+            Para importar: Use um arquivo .CSV separado por vírgulas ou ponto-e-vírgula.<br>
             Colunas obrigatórias: <strong>Nome, Whatsapp</strong>
         </p>
     `;
@@ -1279,15 +1279,19 @@ function processarImportacao(input) {
             return;
         }
 
-        // Simples parser de CSV (assume separação por vírgula)
+        // Tenta detetar o separador (vírgula ou ponto e vírgula) na primeira linha
+        const firstLine = lines[0];
+        const delimiter = firstLine.includes(';') ? ';' : ',';
+        
+        // Simples parser de CSV
         // Detecta cabeçalhos na primeira linha
-        const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/[\r"]/g, ''));
+        const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/[\r"]/g, ''));
         
         const idxNome = headers.findIndex(h => h.includes('nome'));
         const idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular'));
         
         if(idxNome === -1 || idxWpp === -1) {
-            mostrarAviso("Erro: O arquivo deve ter colunas 'Nome' e 'Whatsapp'.");
+            mostrarAviso(`Erro: O arquivo deve ter colunas 'Nome' e 'Whatsapp'. (Separador detetado: '${delimiter}')`);
             return;
         }
 
@@ -1297,7 +1301,7 @@ function processarImportacao(input) {
         for(let i = 1; i < lines.length; i++) {
             if(!lines[i].trim()) continue;
             
-            const cols = lines[i].split(',').map(c => c.trim().replace(/[\r"]/g, ''));
+            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/[\r"]/g, ''));
             const nome = cols[idxNome];
             const whatsapp = cols[idxWpp];
             
