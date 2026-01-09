@@ -11,6 +11,24 @@ function getLocalISODate(date) {
     return adjustedDate.toISOString().split('T')[0];
 }
 
+function switchModalTab(tabName) {
+    // Remove active de todos
+    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+    
+    // Ativa o botão clicado (procura pelo texto no onclick para simplificar sem IDs únicos nos botões)
+    const tabs = document.querySelectorAll('.modal-tab');
+    tabs.forEach(t => {
+        if(t.getAttribute('onclick') && t.getAttribute('onclick').includes(tabName)) {
+            t.classList.add('active');
+        }
+    });
+
+    // Ativa o conteúdo
+    const content = document.getElementById(`tab-modal-${tabName}`);
+    if(content) content.classList.add('active');
+}
+
 // ==========================================
 // MENU LATERAL (SIDEBAR)
 // ==========================================
@@ -728,21 +746,150 @@ function renderizarListaServicos() {
     lucide.createIcons(); 
 }
 
-function renderizarListaPacotes() { 
-    const container = document.getElementById('lista-pacotes'); 
-    container.innerHTML = ''; 
+// Update renderizarListaPacotes
+function renderizarListaPacotes() {
+    const container = document.getElementById('lista-pacotes');
+    container.innerHTML = '';
     
-    if(!pacotesCache || pacotesCache.length === 0) { 
-        container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; 
-        return; 
-    } 
+    if(!pacotesCache || pacotesCache.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>';
+        return;
+    }
     
-    pacotesCache.forEach(p => { 
-        const div = document.createElement('div'); 
-        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100'; 
-        div.innerHTML = `<div class="flex justify-between items-start mb-2"><div><h4 class="font-bold text-slate-800">${p.nome_cliente}</h4><p class="text-xs text-slate-500">${p.nome_servico}</p></div><span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">${p.qtd_restante}/${p.qtd_total}</span></div><div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(p.qtd_restante/p.qtd_total)*100}%"></div></div>`; 
-        container.appendChild(div); 
-    }); 
+    pacotesCache.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 mb-3 cursor-pointer hover:bg-slate-50 transition-colors';
+        div.onclick = () => abrirDetalhesPacote(p.id_pacote); // Add click handler
+        
+        const percent = (p.qtd_restante / p.qtd_total) * 100;
+        
+        div.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h4 class="font-bold text-slate-800">${p.nome_cliente}</h4>
+                    <p class="text-xs text-slate-500">${p.nome_servico}</p>
+                </div>
+                <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">
+                    ${p.qtd_restante}/${p.qtd_total}
+                </span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-1.5 mb-1">
+                <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${percent}%"></div>
+            </div>
+            <p class="text-[10px] text-right text-slate-400">Validade: ${formatarDataBr(p.validade) || 'Indefinida'}</p>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function abrirDetalhesPacote(idPacote) {
+    const p = pacotesCache.find(x => x.id_pacote === idPacote);
+    if (!p) return;
+
+    const modal = document.getElementById('modal-detalhes-pacote');
+    
+    // Tab Saldos
+    const divSaldos = document.getElementById('tab-modal-saldos');
+    const percent = (p.qtd_restante / p.qtd_total) * 100;
+    
+    divSaldos.innerHTML = `
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center mb-4">
+            <p class="text-xs text-slate-400 uppercase font-bold">Saldo Atual</p>
+            <div class="text-4xl font-bold text-slate-800 my-2">${p.qtd_restante} <span class="text-lg text-slate-400">/ ${p.qtd_total}</span></div>
+            <p class="text-sm text-slate-500">${p.nome_servico}</p>
+        </div>
+        <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Cliente:</span>
+                <span class="font-bold text-slate-700">${p.nome_cliente}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Comprado em:</span>
+                <span class="font-bold text-slate-700">${formatarDataBr(p.data_compra)}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Validade:</span>
+                <span class="font-bold text-slate-700">${formatarDataBr(p.validade) || 'Indefinida'}</span>
+            </div>
+        </div>
+    `;
+
+    // Tab Histórico
+    const divHist = document.getElementById('tab-modal-historico');
+    divHist.innerHTML = '';
+    
+    // Filter appointments used by this package
+    const usos = agendamentosRaw.filter(a => String(a.id_pacote_usado) === String(idPacote));
+    
+    // Sort by date desc
+    usos.sort((a, b) => {
+        const da = new Date(a.data_agendamento + 'T' + a.hora_inicio);
+        const db = new Date(b.data_agendamento + 'T' + b.hora_inicio);
+        return db - da;
+    });
+
+    if (usos.length === 0) {
+        divHist.innerHTML = '<p class="text-center text-slate-400 py-6 text-sm">Nenhum uso registrado ainda.</p>';
+    } else {
+        // Add "Generate Report" button
+        const btnReport = document.createElement('button');
+        btnReport.className = 'w-full mb-4 py-2 bg-blue-50 text-blue-600 font-bold rounded-lg text-sm border border-blue-100 flex items-center justify-center gap-2 btn-anim';
+        btnReport.innerHTML = '<i data-lucide="clipboard-copy" class="w-4 h-4"></i> Copiar Relatório de Uso';
+        btnReport.onclick = () => gerarRelatorioPacote(p, usos);
+        divHist.appendChild(btnReport);
+
+        usos.forEach(u => {
+            const row = document.createElement('div');
+            row.className = 'flex justify-between items-center py-3 border-b border-slate-100 last:border-0';
+            
+            let statusColor = 'text-slate-500';
+            if (u.status === 'Confirmado') statusColor = 'text-green-600';
+            if (u.status === 'Concluido') statusColor = 'text-blue-600';
+            
+            row.innerHTML = `
+                <div>
+                    <p class="font-bold text-slate-700 text-sm">${formatarDataBr(u.data_agendamento)}</p>
+                    <p class="text-xs text-slate-400">${u.hora_inicio}</p>
+                </div>
+                <span class="text-xs font-bold uppercase ${statusColor}">${u.status}</span>
+            `;
+            divHist.appendChild(row);
+        });
+    }
+
+    modal.classList.add('open');
+    lucide.createIcons();
+}
+
+function gerarRelatorioPacote(pacote, usos) {
+    let texto = `📋 *RELATÓRIO DE PACOTE*\n\n`;
+    texto += `👤 Cliente: ${pacote.nome_cliente}\n`;
+    texto += `📦 Serviço: ${pacote.nome_servico}\n`;
+    texto += `📊 Saldo: ${pacote.qtd_restante} de ${pacote.qtd_total}\n`;
+    texto += `📅 Validade: ${formatarDataBr(pacote.validade) || 'Indefinida'}\n\n`;
+    
+    texto += `*HISTÓRICO DE USO:*\n`;
+    
+    if (usos.length === 0) {
+        texto += `(Nenhum uso registrado)\n`;
+    } else {
+        const usosCronologico = [...usos].sort((a, b) => {
+            return new Date(a.data_agendamento) - new Date(b.data_agendamento);
+        });
+
+        usosCronologico.forEach((u, i) => {
+            texto += `${i+1}. ${formatarDataBr(u.data_agendamento)} às ${u.hora_inicio} - ${u.status}\n`;
+        });
+    }
+    
+    texto += `\nGerado em ${new Date().toLocaleString('pt-BR')}`;
+    
+    navigator.clipboard.writeText(texto).then(() => {
+        mostrarAviso("Relatório copiado! Pode colar no WhatsApp.");
+    }).catch(err => {
+        console.error(err);
+        mostrarAviso("Erro ao copiar relatório.");
+    });
 }
 
 function renderizarListaUsuarios() { 
@@ -1072,6 +1219,7 @@ function verificarPacoteDisponivel() {
 }
 
 function abrirDetalhesPacote(grupo) { 
+    // Mantida para compatibilidade
     const modal = document.getElementById('modal-detalhes-pacote'); 
     modal.classList.add('open'); 
 }
