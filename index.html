@@ -71,28 +71,44 @@
 
     <!-- ================== ABAS PRINCIPAIS ================== -->
 
-    <!-- 1. AGENDA -->
-    <div id="tab-agenda" class="tab-content active">
-        <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm flex justify-between items-center border border-slate-100 sticky top-0 z-10">
-            <button onclick="mudarDia(-1)" class="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-full text-slate-500 btn-anim">
-                <i data-lucide="chevron-left"></i>
-            </button>
-            <div class="text-center">
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1" id="dia-semana-display">Hoje</p>
-                <input type="date" id="data-picker" 
-                    class="text-base font-bold text-slate-800 bg-transparent text-center outline-none cursor-pointer w-full" 
-                    onchange="atualizarDataEPainel()">
+    <!-- 1. AGENDA (VISUAL SEMANAL) -->
+    <div id="tab-agenda" class="tab-content active" style="padding: 0; max-width: 100%;">
+        <!-- Cabeçalho do Calendário -->
+        <div class="calendar-header pt-4 px-4 bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="current-month-year" class="text-lg font-bold text-slate-800 capitalize">Janeiro 2024</h2>
+                <div class="flex gap-1">
+                    <button onclick="mudarSemana(-1)" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 btn-anim text-slate-500">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="irParaHoje()" class="px-3 h-8 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg btn-anim flex items-center">
+                        Hoje
+                    </button>
+                    <button onclick="mudarSemana(1)" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 btn-anim text-slate-500">
+                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                    </button>
+                </div>
             </div>
-            <button onclick="mudarDia(1)" class="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-full text-slate-500 btn-anim">
-                <i data-lucide="chevron-right"></i>
-            </button>
+            
+            <!-- Barra de Dias da Semana (Injetado via JS) -->
+            <div id="week-strip" class="week-strip">
+                <!-- Exemplo de item (gerado dinamicamente):
+                <div class="day-column selected">
+                    <span class="day-name">SEG</span>
+                    <span class="day-number">12</span>
+                </div> 
+                -->
+            </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[400px]">
-            <div id="agenda-timeline" class="timeline-container pl-2 pr-2 pt-4 pb-10">
-                <div class="p-10 text-center text-slate-400">
-                    <div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div>
-                    <p>A carregar agenda...</p>
+        <!-- Área da Timeline -->
+        <div class="px-4 pb-24 pt-2">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[500px]">
+                <div id="agenda-timeline" class="timeline-container pl-2 pr-2 pt-4 pb-10">
+                    <div class="p-10 text-center text-slate-400">
+                        <div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div>
+                        <p>A carregar agenda...</p>
+                    </div>
                 </div>
             </div>
         </div>
