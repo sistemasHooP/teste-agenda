@@ -1270,8 +1270,8 @@ function processarImportacao(input) {
 
     // Verificação de arquivo binário Excel
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        mostrarAviso("O navegador não lê arquivos .XLSX diretamente. Por favor, abra o arquivo no Excel e escolha 'Salvar como' > 'CSV (Separado por vírgulas)'.");
-        input.value = ''; // Limpa o input
+        mostrarAviso("O sistema aceita apenas arquivos .CSV. No Excel, vá em 'Salvar como' e escolha o formato 'CSV (Separado por vírgulas)'.");
+        input.value = ''; 
         return;
     }
 
@@ -1279,59 +1279,69 @@ function processarImportacao(input) {
     
     reader.onload = function(e) {
         const text = e.target.result;
-        const lines = text.split('\n');
+        // Normaliza quebras de linha para evitar problemas com \r
+        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
         
         if(lines.length < 2) {
-            mostrarAviso("Arquivo vazio ou inválido.");
+            mostrarAviso("Arquivo vazio ou sem dados suficientes.");
             return;
         }
 
-        // Tenta detetar o separador (vírgula ou ponto e vírgula) na primeira linha
+        // Tenta detetar o separador na primeira linha
         const firstLine = lines[0];
         const delimiter = firstLine.includes(';') ? ';' : ',';
         
-        // Simples parser de CSV
-        // Detecta cabeçalhos na primeira linha e remove caracteres estranhos (BOM, quotes)
+        // Parser de cabeçalhos
         const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/^["\ufeff]+|["\r]+$/g, ''));
         
-        const idxNome = headers.findIndex(h => h.includes('nome'));
-        // Melhora a detecção de coluna de telefone/whatsapp
-        const idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular') || h.includes('contato'));
+        // Mapeamento de colunas
+        let idxNome = headers.findIndex(h => h.includes('nome') || h.includes('name'));
+        let idxWpp = headers.findIndex(h => h.includes('whatsapp') || h.includes('telefone') || h.includes('celular') || h.includes('fone') || h.includes('mobile'));
+        let idxEmail = headers.findIndex(h => h.includes('email') || h.includes('e-mail'));
         
+        // Fallback: Se não achar pelo nome, tenta posições padrão (0=Nome, 1=Whatsapp) se o arquivo tiver poucas colunas
+        if (idxNome === -1 && headers.length >= 1) idxNome = 0;
+        if (idxWpp === -1 && headers.length >= 2) idxWpp = 1;
+
         if(idxNome === -1 || idxWpp === -1) {
-            mostrarAviso(`Erro: O arquivo deve ter colunas 'Nome' e 'Whatsapp'. (Separador detetado: '${delimiter}')`);
+            mostrarAviso(`Não foi possível identificar as colunas 'Nome' e 'Whatsapp'. Verifique se o cabeçalho está correto. (Separador: '${delimiter}')`);
             return;
         }
 
         let importadosCount = 0;
         
+        // Garante que clientesCache existe
+        if (typeof clientesCache === 'undefined') window.clientesCache = [];
+
         // Começa da linha 1 (ignora cabeçalho)
         for(let i = 1; i < lines.length; i++) {
             if(!lines[i].trim()) continue;
             
-            // Separa colunas e limpa aspas extras que o CSV pode ter
-            const cols = lines[i].split(delimiter).map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+            // Separa colunas mantendo integridade se houver separadores dentro de aspas
+            const rowData = lines[i];
+            let cols = [];
             
-            // Segurança se a linha estiver incompleta
+            if (delimiter === ';') {
+                cols = rowData.split(';').map(c => c.trim().replace(/^"|"$/g, ''));
+            } else {
+                cols = rowData.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+            }
+            
             const nome = cols[idxNome] || "";
-            const whatsapp = cols[idxWpp] || "";
+            let whatsapp = cols[idxWpp] || "";
             
-            // Validações básicas
+            // Validações básicas: precisa ter nome e algum contato
             if(nome && whatsapp) {
-                // Verifica duplicidade simples por telefone
-                const existe = (typeof clientesCache !== 'undefined' ? clientesCache : []).find(c => c.whatsapp === whatsapp);
+                // Verifica duplicidade
+                const existe = clientesCache.find(c => c.whatsapp === whatsapp || c.nome.toLowerCase() === nome.toLowerCase());
                 
                 if(!existe) {
-                    // Adiciona ao cache local
-                    // NOTA: Em um sistema real, aqui você chamaria a API para salvar
-                    if (typeof clientesCache === 'undefined') window.clientesCache = [];
-                    
                     clientesCache.push({
-                        id_cliente: 'temp_' + Date.now() + Math.random(),
+                        id_cliente: 'temp_' + Date.now() + Math.random().toString(36).substr(2, 5),
                         nome: nome,
                         whatsapp: whatsapp,
-                        email: headers.includes('email') && headers.indexOf('email') < cols.length ? cols[headers.indexOf('email')] : '',
-                        observacoes: 'Importado via Excel'
+                        email: (idxEmail > -1 && cols[idxEmail]) ? cols[idxEmail] : '',
+                        observacoes: 'Importado via Planilha'
                     });
                     importadosCount++;
                 }
@@ -1339,26 +1349,27 @@ function processarImportacao(input) {
         }
 
         if(importadosCount > 0) {
-            // Ordena lista novamente
-            if(typeof clientesCache !== 'undefined') {
-                clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
-            }
+            // Ordena lista
+            clientesCache.sort((a, b) => a.nome.localeCompare(b.nome));
             
-            // Limpa qualquer filtro de busca que possa estar ocultando os novos clientes
+            // Limpa filtro
             const buscaInput = document.getElementById('busca-cliente');
             if(buscaInput) buscaInput.value = '';
             
-            // Atualiza UI se estiver na aba de clientes
-            renderizarListaClientes();
-            // Atualiza datalists
+            // Atualiza dados
             atualizarDatalistClientes();
+            
+            // Vai para a aba de clientes para mostrar o resultado
+            switchTab('clientes');
+            
+            // Força a renderização
+            renderizarListaClientes();
             
             mostrarAviso(`${importadosCount} clientes importados com sucesso!`);
         } else {
-            mostrarAviso("Nenhum cliente novo importado (todos duplicados ou arquivo vazio).");
+            mostrarAviso("Nenhum cliente novo encontrado. Verifique se já estão cadastrados ou se a planilha está correta.");
         }
         
-        // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
         input.value = '';
     };
 
