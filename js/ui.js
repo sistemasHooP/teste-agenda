@@ -1217,36 +1217,51 @@ function renderizarAreaImportacaoExportacao() {
 }
 
 function exportarClientesCSV() {
-    if(!clientesCache || clientesCache.length === 0) {
+    // Verificação de segurança para a variável global
+    const lista = (typeof clientesCache !== 'undefined') ? clientesCache : [];
+    
+    if(!lista || lista.length === 0) {
         mostrarAviso("Não há clientes para exportar.");
         return;
     }
 
-    // Cria o cabeçalho
-    let csvContent = "Nome,Whatsapp,Email,Observacoes\n";
+    try {
+        // Cria o cabeçalho
+        let csvContent = "Nome,Whatsapp,Email,Observacoes\n";
 
-    // Adiciona os dados
-    clientesCache.forEach(c => {
-        // Trata campos nulos e remove quebras de linha que possam quebrar o CSV
-        const nome = (c.nome || "").replace(/,/g, " ");
-        const wpp = (c.whatsapp || "").replace(/,/g, "");
-        const email = (c.email || "").replace(/,/g, "");
-        const obs = (c.observacoes || "").replace(/,/g, " ").replace(/\n/g, " ");
+        // Adiciona os dados
+        lista.forEach(c => {
+            if (!c) return; // Segurança contra itens nulos
+            
+            // Converte para String antes de fazer replace para evitar erros se for número
+            const nome = String(c.nome || "").replace(/,/g, " ");
+            const wpp = String(c.whatsapp || "").replace(/,/g, "");
+            const email = String(c.email || "").replace(/,/g, "");
+            const obs = String(c.observacoes || "").replace(/,/g, " ").replace(/\n/g, " ");
+            
+            csvContent += `${nome},${wpp},${email},${obs}\n`;
+        });
+
+        // Adiciona BOM para o Excel reconhecer acentos UTF-8
+        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         
-        csvContent += `${nome},${wpp},${email},${obs}\n`;
-    });
-
-    // Adiciona BOM para o Excel reconhecer acentos UTF-8
-    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
-    // Cria link temporário para download
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "clientes_sistema.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        // Cria link temporário para download
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `clientes_${new Date().toISOString().slice(0,10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Limpa a URL criada
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+        
+    } catch (erro) {
+        console.error("Erro ao exportar:", erro);
+        mostrarAviso("Erro ao gerar o arquivo de exportação.");
+    }
 }
 
 function processarImportacao(input) {
