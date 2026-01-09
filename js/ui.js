@@ -814,7 +814,8 @@ function renderizarListaPacotes() {
 }
 
 function abrirDetalhesPacote(idPacote) {
-    const p = pacotesCache.find(x => x.id_pacote === idPacote);
+    // Ensure string comparison for safety
+    const p = pacotesCache.find(x => String(x.id_pacote) === String(idPacote));
     if (!p) return;
 
     const modal = document.getElementById('modal-detalhes-pacote');
@@ -1263,12 +1264,6 @@ function verificarPacoteDisponivel() {
         inputIdPacote.value = pacote.id_pacote; 
         checkbox.checked = true; 
     } 
-}
-
-function abrirDetalhesPacote(grupo) { 
-    // Mantida para compatibilidade
-    const modal = document.getElementById('modal-detalhes-pacote'); 
-    modal.classList.add('open'); 
 }
 
 // ==========================================
