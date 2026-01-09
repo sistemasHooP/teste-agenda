@@ -15,7 +15,8 @@ let config = {
     intervalo_minutos: 60, 
     permite_encaixe: false,
     mensagem_lembrete: "Olá {cliente}, seu agendamento é dia {data} às {hora}.",
-    mensagens_rapidas: [] 
+    mensagens_rapidas: [],
+    horarios_semanais: [] 
 };
 let agendamentosRaw = [];
 let isSyncing = false;
@@ -135,8 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('minhaAgendaUser') || sessionStorage.getItem('minhaAgendaUser');
     if(savedUser) { currentUser = JSON.parse(savedUser); iniciarApp(); }
     
-    // Listener de data-picker removido pois o elemento não existe mais
-
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
@@ -189,7 +188,12 @@ async function sincronizarDadosAPI() {
     try {
         const fetchSafe = async (action) => { try { const r = await fetch(`${API_URL}?action=${action}`); return await r.json(); } catch(e) { console.error(`Erro ${action}`, e); return []; } };
         const [resConfig, resServicos, resClientes, resPacotes, resAgendamentos, resUsuarios] = await Promise.all([ fetchSafe('getConfig'), fetchSafe('getServicos'), fetchSafe('getClientes'), fetchSafe('getPacotes'), fetchSafe('getAgendamentos'), currentUser.nivel === 'admin' ? fetchSafe('getUsuarios') : Promise.resolve([]) ]);
-        if(resConfig && resConfig.abertura) { config = resConfig; saveToCache('config', config); atualizarUIConfig(); }
+        if(resConfig) { 
+            config = resConfig; 
+            if(!config.horarios_semanais) config.horarios_semanais = []; // Fallback
+            saveToCache('config', config); 
+            atualizarUIConfig(); 
+        }
         servicosCache = Array.isArray(resServicos) ? resServicos : []; saveToCache('servicos', servicosCache);
         clientesCache = Array.isArray(resClientes) ? resClientes : []; saveToCache('clientes', clientesCache);
         pacotesCache = Array.isArray(resPacotes) ? resPacotes : []; saveToCache('pacotes', pacotesCache);
@@ -226,8 +230,52 @@ function showSyncIndicator(show) { isSyncing = show; document.getElementById('sy
 
 function renderizarGrade() {
     const container = document.getElementById('agenda-timeline'); if(!container) return; container.innerHTML = '';
-    const [hA, mA] = config.abertura.split(':').map(Number); const [hF, mF] = config.fechamento.split(':').map(Number); const startMin = hA*60 + mA; const endMin = hF*60 + mF; const interval = parseInt(config.intervalo_minutos) || 60; const dateIso = dataAtual.toISOString().split('T')[0];
-    for(let m = startMin; m < endMin; m += interval) { const hSlot = Math.floor(m/60); const mSlot = m % 60; const timeStr = `${String(hSlot).padStart(2,'0')}:${String(mSlot).padStart(2,'0')}`; const div = document.createElement('div'); div.className = 'time-slot'; div.style.height = '80px'; div.innerHTML = `<div class="time-label">${timeStr}</div><div class="slot-content" id="slot-${m}"><div class="slot-livre-area" onclick="abrirModalAgendamento('${timeStr}')"></div></div>`; container.appendChild(div); }
+    
+    // === LÓGICA DE HORÁRIOS SEMANAIS ===
+    const diaDaSemana = dataAtual.getDay(); // 0 = Domingo, ..., 6 = Sábado
+    
+    // Procura a configuração específica para este dia
+    let configDia = null;
+    if (config.horarios_semanais && Array.isArray(config.horarios_semanais)) {
+        configDia = config.horarios_semanais.find(h => parseInt(h.dia) === diaDaSemana);
+    }
+
+    // Se não tiver config ou não estiver ativo (Fechado)
+    if (!configDia || !configDia.ativo) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-64 text-slate-300">
+                <i data-lucide="moon" class="w-12 h-12 mb-2"></i>
+                <p class="font-bold text-lg">Fechado</p>
+                <p class="text-xs">Não há atendimento neste dia.</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    // Usa os horários específicos do dia
+    const abertura = configDia.inicio || '08:00';
+    const fechamento = configDia.fim || '19:00';
+
+    const [hA, mA] = abertura.split(':').map(Number); 
+    const [hF, mF] = fechamento.split(':').map(Number); 
+    const startMin = hA*60 + mA; 
+    const endMin = hF*60 + mF; 
+    
+    const interval = parseInt(config.intervalo_minutos) || 60; 
+    const dateIso = dataAtual.toISOString().split('T')[0];
+    
+    for(let m = startMin; m < endMin; m += interval) { 
+        const hSlot = Math.floor(m/60); 
+        const mSlot = m % 60; 
+        const timeStr = `${String(hSlot).padStart(2,'0')}:${String(mSlot).padStart(2,'0')}`; 
+        const div = document.createElement('div'); 
+        div.className = 'time-slot'; 
+        div.style.height = '80px'; 
+        div.innerHTML = `<div class="time-label">${timeStr}</div><div class="slot-content" id="slot-${m}"><div class="slot-livre-area" onclick="abrirModalAgendamento('${timeStr}')"></div></div>`; 
+        container.appendChild(div); 
+    }
+    
     const events = agendamentosCache.filter(a => a.data_agendamento === dateIso && a.hora_inicio).map(a => { const [h, m] = a.hora_inicio.split(':').map(Number); const start = h*60 + m; const svc = servicosCache.find(s => String(s.id_servico) === String(a.id_servico)); const dur = svc ? parseInt(svc.duracao_minutos) : 60; return { ...a, start, end: start + dur, dur, svc }; }).sort((a,b) => a.start - b.start);
     let groups = []; let lastEnd = -1; events.forEach(ev => { if(ev.start >= lastEnd) { groups.push([ev]); lastEnd = ev.end; } else { groups[groups.length-1].push(ev); if(ev.end > lastEnd) lastEnd = ev.end; } });
     groups.forEach(group => { const width = 100 / group.length; group.forEach((ev, idx) => { if(ev.start < startMin || ev.start >= endMin) return; const offset = (ev.start - startMin) % interval; const slotBase = ev.start - offset; const slotEl = document.getElementById(`slot-${slotBase}`); if(!slotEl) return; const height = (ev.dur / interval) * 80; const top = (offset / interval) * 80; const left = idx * width; const card = document.createElement('div'); card.className = 'event-card'; card.style.top = `${top + 2}px`; card.style.height = `calc(${height}px - 4px)`; card.style.left = `calc(${left}% + 2px)`; card.style.width = `calc(${width}% - 4px)`; const color = getCorServico(ev.svc); card.style.backgroundColor = hexToRgba(color, 0.15); card.style.borderLeftColor = color; card.style.color = '#1e293b'; let statusIcon = ''; if(ev.status === 'Confirmado') { statusIcon = '<div class="absolute top-1 right-1 bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>'; card.classList.add('status-confirmado'); } else if (ev.status === 'Concluido') card.classList.add('status-concluido'); else if (ev.status === 'Cancelado') card.classList.add('status-cancelado'); else card.style.borderLeftColor = color; card.onclick = (e) => { e.stopPropagation(); abrirModalDetalhes(ev.id_agendamento); }; const name = ev.nome_cliente || ev.observacoes || 'Cliente'; card.innerHTML = `${statusIcon}<div style="width:90%" class="font-bold truncate text-[10px]">${name}</div>${width > 25 ? `<div class="text-xs truncate">${ev.hora_inicio} • ${ev.svc ? ev.svc.nome_servico : 'Serviço'}</div>` : ''}`; slotEl.appendChild(card); }); });
@@ -441,8 +489,67 @@ function atualizarUIConfig() {
     
     // Mensagens
     document.getElementById('cfg-lembrete-template').value = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
+    
     renderizarListaMsgRapidasConfig();
+    renderizarListaHorariosSemanais();
 }
+
+function renderizarListaHorariosSemanais() {
+    const container = document.getElementById('lista-horarios-semanais');
+    container.innerHTML = '';
+
+    const diasNomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    
+    // Garante que config.horarios_semanais existe e tem 7 dias
+    if (!config.horarios_semanais || !Array.isArray(config.horarios_semanais) || config.horarios_semanais.length === 0) {
+        config.horarios_semanais = [];
+        for(let i=0; i<7; i++) {
+            config.horarios_semanais.push({
+                dia: i,
+                ativo: i !== 0, // Domingo fechado por padrão
+                inicio: '08:00',
+                fim: '19:00'
+            });
+        }
+    }
+
+    config.horarios_semanais.forEach(dia => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100';
+        
+        const isChecked = dia.ativo ? 'checked' : '';
+        const opacityClass = dia.ativo ? '' : 'opacity-50';
+        const pointerEvents = dia.ativo ? '' : 'pointer-events-none';
+
+        div.innerHTML = `
+            <div class="flex items-center gap-3 w-1/3">
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="day-active-${dia.dia}" class="sr-only peer" ${isChecked} onchange="toggleDiaConfig(${dia.dia})">
+                    <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+                <span class="text-sm font-bold text-slate-700">${diasNomes[dia.dia]}</span>
+            </div>
+            <div id="day-times-${dia.dia}" class="flex items-center gap-2 w-2/3 justify-end ${opacityClass} ${pointerEvents}">
+                <input type="time" id="day-start-${dia.dia}" value="${dia.inicio}" class="bg-white border border-slate-200 rounded-lg p-1 text-sm text-center w-20 outline-none">
+                <span class="text-slate-400 text-xs">até</span>
+                <input type="time" id="day-end-${dia.dia}" value="${dia.fim}" class="bg-white border border-slate-200 rounded-lg p-1 text-sm text-center w-20 outline-none">
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// Função global para o onchange do toggle
+window.toggleDiaConfig = function(diaIndex) {
+    const checkbox = document.getElementById(`day-active-${diaIndex}`);
+    const timeContainer = document.getElementById(`day-times-${diaIndex}`);
+    
+    if (checkbox.checked) {
+        timeContainer.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+        timeContainer.classList.add('opacity-50', 'pointer-events-none');
+    }
+};
 
 function renderizarListaMsgRapidasConfig() {
     const div = document.getElementById('lista-msg-rapidas');
@@ -480,31 +587,44 @@ async function salvarConfigAPI(btn) {
     const originalText = btn.innerText; 
     setLoading(btn, true, originalText); 
     
-    const abertura = document.getElementById('cfg-abertura').value; 
-    const fechamento = document.getElementById('cfg-fechamento').value; 
     const intervalo = document.getElementById('cfg-intervalo').value; 
     const encaixe = document.getElementById('cfg-concorrencia').checked; 
-    
-    // Novos campos
     const msgLembrete = document.getElementById('cfg-lembrete-template').value;
     const msgsRapidas = config.mensagens_rapidas;
+
+    // Coletar Horários Semanais da UI
+    const novosHorarios = [];
+    for(let i=0; i<7; i++) {
+        novosHorarios.push({
+            dia: i,
+            ativo: document.getElementById(`day-active-${i}`).checked,
+            inicio: document.getElementById(`day-start-${i}`).value,
+            fim: document.getElementById(`day-end-${i}`).value
+        });
+    }
+
+    // Abertura/Fechamento Global (Legado, mas mantemos para evitar quebra)
+    // Pegamos do primeiro dia ativo ou padrão
+    const diaAtivo = novosHorarios.find(d => d.ativo) || { inicio: '08:00', fim: '19:00' };
 
     try { 
         await fetch(API_URL, {method:'POST', body:JSON.stringify({ 
             action: 'saveConfig', 
-            abertura: abertura, 
-            fechamento: fechamento, 
+            abertura: diaAtivo.inicio, 
+            fechamento: diaAtivo.fim, 
             intervalo_minutos: intervalo, 
             permite_encaixe: encaixe,
             mensagem_lembrete: msgLembrete,
-            mensagens_rapidas: msgsRapidas
+            mensagens_rapidas: msgsRapidas,
+            horarios_semanais: novosHorarios
         })}); 
         
-        config.abertura = abertura;
-        config.fechamento = fechamento;
+        config.abertura = diaAtivo.inicio;
+        config.fechamento = diaAtivo.fim;
         config.intervalo_minutos = parseInt(intervalo);
         config.permite_encaixe = encaixe;
         config.mensagem_lembrete = msgLembrete;
+        config.horarios_semanais = novosHorarios;
         
         // Atualiza cache e grade
         saveToCache('config', config);
