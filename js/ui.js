@@ -332,7 +332,7 @@ function renderizarGrade() {
 }
 
 // ==========================================
-// CLIENTES E HISTÓRICO (ATUALIZADO)
+// CLIENTES E HISTÓRICO
 // ==========================================
 
 function renderizarListaClientes(filtro = '') {
@@ -387,7 +387,6 @@ function abrirModalHistoricoCliente(idCliente) {
     const cliente = clientesCache.find(c => String(c.id_cliente) === String(idCliente));
     if(!cliente) return;
 
-    // Salva o ID globalmente para os filtros funcionarem
     currentHistoricoClienteId = idCliente;
 
     document.getElementById('hist-nome-cliente').innerText = cliente.nome;
@@ -396,7 +395,7 @@ function abrirModalHistoricoCliente(idCliente) {
     document.getElementById('hist-data-inicio').value = '';
     document.getElementById('hist-data-fim').value = '';
 
-    aplicarFiltroHistorico(); // Carrega lista completa
+    aplicarFiltroHistorico(); 
     document.getElementById('modal-historico-cliente').classList.add('open');
 }
 
@@ -590,6 +589,13 @@ function abrirModalDetalhes(id) {
     document.getElementById('btn-cancelar').style.display = isConcluido || isCancelado || isBloqueio ? 'none' : 'flex';
     document.getElementById('btn-excluir').style.display = isCancelado ? 'block' : 'none';
 
+    // Atualização de Textos
+    const btnEditar = document.getElementById('btn-editar-horario');
+    if(btnEditar) btnEditar.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i> Editar Agendamento';
+    
+    const btnCancelar = document.getElementById('btn-cancelar');
+    if(btnCancelar) btnCancelar.innerHTML = '<i data-lucide="x-circle" class="w-4 h-4"></i> Cancelar Agendamento';
+
     const btnConfirmar = document.getElementById('btn-confirmar');
     const nBtn = btnConfirmar.cloneNode(true);
     btnConfirmar.parentNode.replaceChild(nBtn, btnConfirmar);
@@ -630,6 +636,24 @@ function abrirModalDetalhes(id) {
     
     document.getElementById('modal-detalhes').classList.add('open'); 
     lucide.createIcons(); 
+}
+
+function copiarResumoAgendamento() {
+    const id = document.getElementById('id-agendamento-ativo').value;
+    const ag = agendamentosCache.find(a => a.id_agendamento === id);
+    if (!ag) return;
+
+    const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico));
+    const nomeServico = servico ? servico.nome_servico : 'Serviço';
+    
+    const texto = `📅 Agendamento\n👤 ${ag.nome_cliente}\n✂️ ${nomeServico}\n🗓️ ${formatarDataBr(ag.data_agendamento)}\n⏰ ${ag.hora_inicio}`;
+    
+    navigator.clipboard.writeText(texto).then(() => {
+        mostrarAviso("Resumo copiado para a área de transferência!");
+    }).catch(err => {
+        console.error('Erro ao copiar: ', err);
+        mostrarAviso("Erro ao copiar.");
+    });
 }
 
 function resetarBotoesModal() {
