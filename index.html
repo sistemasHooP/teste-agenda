@@ -78,8 +78,8 @@
             <div class="flex justify-between items-center mb-4">
                 <h2 id="current-month-year" class="text-lg font-bold text-slate-800 capitalize">Janeiro 2024</h2>
                 <div class="flex gap-1 items-center">
-                    <!-- Botão Bloqueio Novo -->
-                    <button onclick="abrirModalBloqueio()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 mr-2 btn-anim">
+                    <!-- Botão Bloqueio: Agora abre o modal na aba bloquear -->
+                    <button onclick="abrirModalAgendamento(null, 'bloquear')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 mr-2 btn-anim">
                         <i data-lucide="lock" class="w-4 h-4"></i>
                     </button>
 
@@ -263,14 +263,22 @@
         </div>
     </div>
 
-    <!-- 4. MODAL AGENDAMENTO -->
+    <!-- 4. MODAL AGENDAMENTO UNIFICADO (COM ABAS) -->
     <div id="modal-agendamento" class="modal-overlay">
         <div class="modal-card">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-slate-800">Novo Agendamento</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-800">Novo Item</h3>
                 <button onclick="fecharModal('modal-agendamento')"><i data-lucide="x" class="text-slate-400"></i></button>
             </div>
-            <form id="form-agendamento" onsubmit="salvarAgendamentoOtimista(event)">
+
+            <!-- Abas de Tipo -->
+            <div class="flex bg-slate-100 p-1 rounded-xl mb-6">
+                <button onclick="switchTipoAgendamento('agendar')" id="btn-tipo-agendar" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all bg-white text-blue-600 shadow-sm">Agendar</button>
+                <button onclick="switchTipoAgendamento('bloquear')" id="btn-tipo-bloquear" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all text-slate-500 hover:text-slate-700">Bloquear</button>
+            </div>
+
+            <!-- FORM AGENDAR -->
+            <form id="form-agendamento" onsubmit="salvarAgendamentoOtimista(event)" class="block">
                 <div class="space-y-4">
                     <div id="div-select-prof-modal" class="hidden">
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Profissional</label>
@@ -311,19 +319,11 @@
                         <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Horário</label><input type="time" id="input-hora-modal" name="hora_inicio" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
                     </div>
                 </div>
-                <button type="submit" id="btn-salvar-agenda" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Confirmar</button>
+                <button type="submit" id="btn-salvar-agenda" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Confirmar Agendamento</button>
             </form>
-        </div>
-    </div>
-    
-    <!-- 4.1 MODAL BLOQUEIO (NOVO) -->
-    <div id="modal-bloqueio" class="modal-overlay">
-        <div class="modal-card">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-slate-800">Bloquear Horário</h3>
-                <button onclick="fecharModal('modal-bloqueio')"><i data-lucide="x" class="text-slate-400"></i></button>
-            </div>
-            <form id="form-bloqueio" onsubmit="salvarBloqueio(event)">
+
+            <!-- FORM BLOQUEAR -->
+            <form id="form-bloqueio" onsubmit="salvarBloqueio(event)" class="hidden">
                 <div class="space-y-4">
                     <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600 mb-4">
                         <p>Use para intervalos, almoço ou compromissos pessoais. O horário ficará indisponível.</p>
@@ -343,6 +343,7 @@
                 </div>
                 <button type="submit" id="btn-salvar-bloqueio" class="w-full mt-6 py-3 bg-slate-700 text-white rounded-xl font-bold btn-anim">Confirmar Bloqueio</button>
             </form>
+
         </div>
     </div>
 
