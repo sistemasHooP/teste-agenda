@@ -68,6 +68,73 @@ function logout() {
     location.reload(); 
 }
 
+// --- NAVEGAÇÃO E TABS (REINSERIDO) ---
+
+function switchTab(t, el) { 
+    abaAtiva = t; 
+    
+    // Atualiza classes dos botões da navbar
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active')); 
+    if(el) el.classList.add('active'); 
+    
+    // Alterna o conteúdo das abas
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); 
+    const tabContent = document.getElementById(`tab-${t}`);
+    if(tabContent) tabContent.classList.add('active'); 
+    
+    // Controla visibilidade do FAB (Botão Flutuante)
+    const fab = document.getElementById('main-fab');
+    if(fab) fab.style.display = t === 'config' ? 'none' : 'flex'; 
+    
+    // Lógicas específicas ao entrar na aba
+    if (t === 'pacotes') {
+        // Se a função existir (carregada do js/pacotes.js)
+        if(typeof mudarAbaPacotes === 'function') mudarAbaPacotes('ativos'); 
+        if(typeof carregarPacotes === 'function') carregarPacotes(); 
+    }
+    if (t === 'config') {
+        if(typeof atualizarUIConfig === 'function') atualizarUIConfig();
+    }
+}
+
+function switchConfigTab(tab) {
+    document.getElementById('cfg-area-geral').classList.add('hidden');
+    document.getElementById('cfg-area-msg').classList.add('hidden');
+    
+    const btnGeral = document.getElementById('btn-cfg-geral');
+    const btnMsg = document.getElementById('btn-cfg-msg');
+
+    // Reset visual dos botões
+    if(btnGeral) btnGeral.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
+    if(btnMsg) btnMsg.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
+
+    if (tab === 'geral') {
+        document.getElementById('cfg-area-geral').classList.remove('hidden');
+        if(btnGeral) btnGeral.className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
+    } else {
+        document.getElementById('cfg-area-msg').classList.remove('hidden');
+        if(btnMsg) btnMsg.className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
+    }
+}
+
+function switchModalTab(tab) {
+    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+    
+    const btn = document.getElementById(`tab-btn-${tab}`);
+    const content = document.getElementById(`tab-modal-${tab}`);
+    
+    if(btn) btn.classList.add('active');
+    if(content) content.classList.add('active');
+}
+
+function acaoFab() { 
+    if (abaAtiva === 'servicos' && typeof abrirModalServico === 'function') abrirModalServico(); 
+    else if (abaAtiva === 'agenda' && typeof abrirModalAgendamento === 'function') abrirModalAgendamento(); 
+    else if (abaAtiva === 'pacotes' && typeof abrirModalVenderPacote === 'function') abrirModalVenderPacote(); 
+    else if (abaAtiva === 'equipa' && typeof abrirModalUsuario === 'function') abrirModalUsuario(); 
+}
+
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 function iniciarApp() {
@@ -93,7 +160,6 @@ function iniciarApp() {
     }
     
     // 4. Inicializar componentes visuais (Color Pickers)
-    // Funções definidas em js/utils.js ou js/admin.js
     if(typeof renderizarColorPicker === 'function') renderizarColorPicker(); 
     if(typeof renderizarColorPickerEdicao === 'function') renderizarColorPickerEdicao(); 
     
@@ -106,8 +172,10 @@ function iniciarApp() {
 }
 
 function carregarDoCache() {
-    // Carregar dados do localStorage para as variáveis globais (definidas em js/globals.js)
-    // getFromCache está em js/utils.js
+    // Carregar dados do localStorage para as variáveis globais
+    // (getFromCache deve estar disponível via js/utils.js)
+    if(typeof getFromCache !== 'function') return;
+
     const cachedServicos = getFromCache('servicos');
     const cachedConfig = getFromCache('config');
     const cachedUsuarios = getFromCache('usuarios');
@@ -118,19 +186,19 @@ function carregarDoCache() {
     // Atualizar UI com dados em cache (se existirem)
     if (cachedServicos) { 
         servicosCache = cachedServicos; 
-        if(typeof renderizarListaServicos === 'function') renderizarListaServicos(); // js/admin.js
-        if(typeof atualizarDatalistServicos === 'function') atualizarDatalistServicos(); // js/admin.js
+        if(typeof renderizarListaServicos === 'function') renderizarListaServicos(); 
+        if(typeof atualizarDatalistServicos === 'function') atualizarDatalistServicos(); 
     }
     
     if (cachedConfig) { 
         config = cachedConfig; 
-        if(typeof atualizarUIConfig === 'function') atualizarUIConfig(); // js/admin.js
+        if(typeof atualizarUIConfig === 'function') atualizarUIConfig(); 
     }
     
     if (cachedUsuarios) { 
         usuariosCache = cachedUsuarios; 
-        if(typeof renderizarListaUsuarios === 'function') renderizarListaUsuarios(); // js/admin.js
-        if(typeof popularSelectsUsuarios === 'function') popularSelectsUsuarios(); // js/admin.js
+        if(typeof renderizarListaUsuarios === 'function') renderizarListaUsuarios(); 
+        if(typeof popularSelectsUsuarios === 'function') popularSelectsUsuarios(); 
     }
     
     if (cachedAgendamentos) { 
@@ -139,15 +207,14 @@ function carregarDoCache() {
     
     if (cachedClientes) { 
         clientesCache = cachedClientes; 
-        if(typeof atualizarDatalistClientes === 'function') atualizarDatalistClientes(); // js/admin.js
+        if(typeof atualizarDatalistClientes === 'function') atualizarDatalistClientes(); 
     }
     
     if (cachedPacotes) { 
         pacotesCache = cachedPacotes; 
-        // Não forçamos renderizarListaPacotes aqui pois depende da aba ativa
     }
     
-    // Renderizar a agenda principal (js/agenda.js)
+    // Renderizar a agenda principal
     if(typeof atualizarDataEPainel === 'function') atualizarDataEPainel();
 }
 
@@ -161,7 +228,8 @@ async function sincronizarDadosAPI() {
     if (!hasData && agendamentosRaw.length === 0 && container) { 
         container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>'; 
     } else { 
-        showSyncIndicator(true); // js/utils.js
+        // showSyncIndicator deve estar em js/utils.js
+        if(typeof showSyncIndicator === 'function') showSyncIndicator(true); 
     }
     
     try {
@@ -175,7 +243,7 @@ async function sincronizarDadosAPI() {
             } 
         };
         
-        // Buscar todos os dados em paralelo para performance
+        // Buscar todos os dados em paralelo
         const [resConfig, resServicos, resClientes, resPacotes, resAgendamentos, resUsuarios] = await Promise.all([ 
             fetchSafe('getConfig'), 
             fetchSafe('getServicos'), 
@@ -185,7 +253,7 @@ async function sincronizarDadosAPI() {
             currentUser.nivel === 'admin' ? fetchSafe('getUsuarios') : Promise.resolve([]) 
         ]);
         
-        // Atualizar Estado Global e Cache
+        // Atualizar Estado Global e Cache (saveToCache em js/utils.js)
         if (resConfig && resConfig.abertura) { 
             config = resConfig; 
             if (!config.horarios_semanais) config.horarios_semanais = []; 
@@ -216,19 +284,19 @@ async function sincronizarDadosAPI() {
         }
         
         if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual(); 
-        showSyncIndicator(false);
+        if(typeof showSyncIndicator === 'function') showSyncIndicator(false);
 
     } catch (error) { 
         console.error("Erro sincronização", error); 
         if (!hasData && container) container.innerHTML = '<p class="text-center text-red-400 text-sm">Erro de conexão.</p>'; 
-        showSyncIndicator(false); 
+        if(typeof showSyncIndicator === 'function') showSyncIndicator(false); 
     }
 }
 
 function recarregarAgendaComFiltro(silencioso = false) {
-    if (isSaving) return; // Não recarregar se estiver a salvar algo (evita conflito visual)
+    if (isSaving) return; // Não recarregar se estiver a salvar algo
 
-    if (!silencioso) showSyncIndicator(true);
+    if (!silencioso && typeof showSyncIndicator === 'function') showSyncIndicator(true);
     
     // Preservar estado do modal aberto
     const modalIdInput = document.getElementById('id-agendamento-ativo'); 
@@ -242,28 +310,25 @@ function recarregarAgendaComFiltro(silencioso = false) {
     fetch(`${API_URL}?action=getAgendamentos`).then(r => r.json()).then(dados => {
         let novosAgendamentos = Array.isArray(dados) ? dados : [];
         
-        // Lógica de reconciliação: Se o item temporário aberto no modal já foi salvo no servidor, atualizar o ID no modal
+        // Reconciliação de IDs temporários
         if (activeTempId && tempItem) {
             const realItem = novosAgendamentos.find(a => a.data_agendamento === tempItem.data_agendamento && a.hora_inicio === tempItem.hora_inicio && (a.nome_cliente === tempItem.nome_cliente || (a.observacoes && a.observacoes.includes(tempItem.nome_cliente))) );
             if (realItem) { 
-                // Atualizar o ID temporário para o real na lista local (se necessário)
-                // Nota: Normalmente substituímos a lista toda, mas se o modal estiver aberto com o ID temp, precisamos atualizar o input hidden
                 modalIdInput.value = realItem.id_agendamento; 
-                // Reabrir modal com dados reais (se necessário atualizar status)
                 if(typeof abrirModalDetalhes === 'function') abrirModalDetalhes(realItem.id_agendamento); 
             }
         }
         
-        // Mesclar novos dados com temporários locais
+        // Mesclar
         novosAgendamentos = [...novosAgendamentos, ...currentTemps];
         
         agendamentosRaw = novosAgendamentos; 
         saveToCache('agendamentos', agendamentosRaw); 
         
         if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual(); 
-        showSyncIndicator(false);
+        if(typeof showSyncIndicator === 'function') showSyncIndicator(false);
     }).catch((e) => { 
         console.error(e); 
-        showSyncIndicator(false); 
+        if(typeof showSyncIndicator === 'function') showSyncIndicator(false); 
     });
 }
