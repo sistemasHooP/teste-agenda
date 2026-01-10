@@ -73,16 +73,13 @@
 
     <!-- 1. AGENDA (VISUAL SEMANAL) -->
     <div id="tab-agenda" class="tab-content active" style="padding: 0; max-width: 100%;">
-        <!-- Cabeçalho do Calendário -->
         <div class="calendar-header pt-4 px-4 bg-white">
             <div class="flex justify-between items-center mb-4">
                 <h2 id="current-month-year" class="text-lg font-bold text-slate-800 capitalize">Janeiro 2024</h2>
                 <div class="flex gap-1 items-center">
-                    <!-- Botão Bloqueio: Agora abre o modal na aba bloquear -->
                     <button onclick="abrirModalAgendamento(null, 'bloquear')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 mr-2 btn-anim">
                         <i data-lucide="lock" class="w-4 h-4"></i>
                     </button>
-
                     <button onclick="mudarSemana(-1)" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 btn-anim text-slate-500">
                         <i data-lucide="chevron-left" class="w-5 h-5"></i>
                     </button>
@@ -95,11 +92,11 @@
                 </div>
             </div>
             
-            <!-- Barra de Dias da Semana (Injetado via JS) -->
-            <div id="week-strip" class="week-strip"></div>
+            <div id="week-strip" class="week-strip">
+                <!-- Injetado via JS -->
+            </div>
         </div>
 
-        <!-- Área da Timeline -->
         <div class="px-4 pb-24 pt-2">
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[500px]">
                 <div id="agenda-timeline" class="timeline-container pl-2 pr-2 pt-4 pb-10">
@@ -148,7 +145,25 @@
         </div>
     </div>
 
-    <!-- 4. EQUIPA -->
+    <!-- 4. CLIENTES (NOVA ABA) -->
+    <div id="tab-clientes" class="tab-content">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-slate-800">Clientes</h2>
+            <button onclick="abrirModalCliente()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Novo</button>
+        </div>
+        
+        <!-- Barra de Pesquisa Clientes -->
+        <div class="mb-4 relative">
+            <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4"></i>
+            <input type="text" id="search-clientes" onkeyup="renderizarListaClientes()" placeholder="Nome, telefone ou email..." class="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none text-sm shadow-sm focus:ring-2 focus:ring-blue-100">
+        </div>
+
+        <div id="lista-clientes-ui" class="space-y-3 pb-24">
+            <div class="text-center text-slate-400 py-10">Carregando clientes...</div>
+        </div>
+    </div>
+
+    <!-- 5. EQUIPA -->
     <div id="tab-equipa" class="tab-content admin-only">
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold text-slate-800">Profissionais</h2>
@@ -159,20 +174,17 @@
         </div>
     </div>
 
-    <!-- 5. CONFIGURAÇÕES -->
+    <!-- 6. CONFIGURAÇÕES -->
     <div id="tab-config" class="tab-content admin-only">
         <h2 class="text-xl font-bold text-slate-800 mb-6">Configurações</h2>
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6 mb-24">
             
-            <!-- ABAS INTERNAS DE CONFIG -->
             <div class="flex border-b border-slate-100 mb-4">
                 <button onclick="switchConfigTab('geral')" id="btn-cfg-geral" class="flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600">Geral</button>
                 <button onclick="switchConfigTab('msg')" id="btn-cfg-msg" class="flex-1 py-2 text-sm font-bold text-slate-400">Mensagens</button>
             </div>
-
-            <!-- CFG GERAL -->
+            
             <div id="cfg-area-geral" class="space-y-6">
-                <!-- Container de Horários Semanais -->
                 <div>
                     <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <i data-lucide="clock" class="w-4 h-4 text-blue-600"></i> Horários de Funcionamento
@@ -201,7 +213,6 @@
                 <input type="hidden" id="cfg-fechamento">
             </div>
 
-            <!-- CFG MENSAGENS -->
             <div id="cfg-area-msg" class="space-y-6 hidden">
                 <div>
                     <label class="block text-sm text-slate-800 font-bold mb-1">Modelo de Lembrete</label>
@@ -229,7 +240,7 @@
 
     <!-- ================== MODAIS ================== -->
 
-    <!-- 1. MODAL CONFIRMAÇÃO (Genérico) -->
+    <!-- MODAL CONFIRMAÇÃO -->
     <div id="modal-confirmacao" class="modal-overlay" style="z-index: 120;">
         <div class="modal-card max-w-sm">
             <h3 class="text-lg font-bold text-slate-800 mb-2" id="confirm-titulo">Confirmar</h3>
@@ -241,7 +252,7 @@
         </div>
     </div>
 
-    <!-- 2. MODAL AVISO (Genérico) -->
+    <!-- MODAL AVISO -->
     <div id="modal-aviso" class="modal-overlay" style="z-index: 130;">
         <div class="modal-card max-w-sm text-center">
             <div class="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
@@ -252,7 +263,7 @@
         </div>
     </div>
     
-    <!-- 3. MODAL SELEÇÃO MSG RÁPIDA -->
+    <!-- MODAL SELEÇÃO MSG RÁPIDA -->
     <div id="modal-selecao-msg" class="modal-overlay" style="z-index: 110;">
         <div class="modal-card">
             <div class="flex justify-between items-center mb-4">
@@ -263,7 +274,7 @@
         </div>
     </div>
 
-    <!-- 4. MODAL AGENDAMENTO UNIFICADO (COM ABAS) -->
+    <!-- MODAL AGENDAMENTO (COM BLOQUEIO) -->
     <div id="modal-agendamento" class="modal-overlay">
         <div class="modal-card">
             <div class="flex justify-between items-center mb-4">
@@ -343,11 +354,10 @@
                 </div>
                 <button type="submit" id="btn-salvar-bloqueio" class="w-full mt-6 py-3 bg-slate-700 text-white rounded-xl font-bold btn-anim">Confirmar Bloqueio</button>
             </form>
-
         </div>
     </div>
 
-    <!-- 5. MODAL EDITAR AGENDAMENTO -->
+    <!-- MODAL EDITAR AGENDAMENTO -->
     <div id="modal-editar-agendamento" class="modal-overlay">
         <div class="modal-card">
             <div class="flex justify-between items-center mb-6">
@@ -372,7 +382,7 @@
         </div>
     </div>
 
-    <!-- 6. MODAL VENDER PACOTE -->
+    <!-- MODAL VENDER PACOTE -->
     <div id="modal-vender-pacote" class="modal-overlay">
         <div class="modal-card">
             <div class="flex justify-between items-center mb-6">
@@ -406,10 +416,13 @@
         </div>
     </div>
 
-    <!-- 7. MODAL CLIENTE -->
+    <!-- MODAL CLIENTE (CADASTRO) -->
     <div id="modal-cliente" class="modal-overlay">
         <div class="modal-card">
-            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Cadastrar Cliente</h3><button onclick="fecharModal('modal-cliente')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Cadastrar Cliente</h3>
+                <button onclick="fecharModal('modal-cliente')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
             <form id="form-cliente" onsubmit="salvarNovoCliente(event)">
                 <div class="space-y-4">
                     <input type="text" name="nome" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="Nome Completo">
@@ -421,10 +434,52 @@
         </div>
     </div>
 
-    <!-- 8. MODAL SERVICO (CRIAR) -->
+    <!-- MODAL CLIENTE (DETALHES / EDITAR) -->
+    <div id="modal-detalhes-cliente" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-800">Detalhes do Cliente</h3>
+                <button onclick="fecharModal('modal-detalhes-cliente')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <div class="modal-tabs">
+                <div id="tab-btn-perfil-cliente" class="modal-tab active" onclick="switchModalTab('perfil-cliente')">Perfil</div>
+                <div id="tab-btn-historico-cliente" class="modal-tab" onclick="switchModalTab('historico-cliente')">Histórico</div>
+            </div>
+
+            <!-- PERFIL -->
+            <div id="tab-modal-perfil-cliente" class="modal-tab-content active">
+                <form onsubmit="salvarEdicaoCliente(event)">
+                    <input type="hidden" id="edit-id-cliente">
+                    <div class="space-y-4">
+                        <input type="text" id="edit-nome-cliente" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="Nome">
+                        <input type="tel" id="edit-whatsapp-cliente" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="WhatsApp">
+                        <input type="email" id="edit-email-cliente" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base" placeholder="Email">
+                    </div>
+                    <div class="flex gap-3 mt-6">
+                        <button type="button" onclick="excluirCliente()" class="flex-1 py-3 text-red-600 font-bold hover:bg-red-50 rounded-xl btn-anim border border-red-200">Excluir</button>
+                        <button type="submit" id="btn-update-cliente" class="flex-1 py-3 btn-primary font-bold btn-anim">Salvar</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- HISTÓRICO -->
+            <div id="tab-modal-historico-cliente" class="modal-tab-content">
+                <div class="flex gap-2 mb-3">
+                    <input type="date" id="filter-inicio-hist" class="flex-1 p-2 border rounded-lg text-xs" onchange="filtrarHistoricoCliente()">
+                    <input type="date" id="filter-fim-hist" class="flex-1 p-2 border rounded-lg text-xs" onchange="filtrarHistoricoCliente()">
+                </div>
+                <div id="lista-historico-cliente" class="space-y-2 max-h-60 overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SERVICO (CRIAR) -->
     <div id="modal-servico" class="modal-overlay">
         <div class="modal-card">
-            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Novo Serviço</h3><button onclick="fecharModal('modal-servico')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Novo Serviço</h3>
+                <button onclick="fecharModal('modal-servico')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
             <form id="form-servico" onsubmit="salvarNovoServico(event)">
                 <div class="space-y-4">
                     <input type="text" name="nome_servico" required placeholder="Nome do Serviço" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
@@ -441,10 +496,13 @@
         </div>
     </div>
 
-    <!-- 9. MODAL SERVICO (EDITAR) -->
+    <!-- MODAL SERVICO (EDITAR) -->
     <div id="modal-editar-servico" class="modal-overlay">
         <div class="modal-card">
-            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Editar Serviço</h3><button onclick="fecharModal('modal-editar-servico')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Editar Serviço</h3>
+                <button onclick="fecharModal('modal-editar-servico')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
             <form id="form-editar-servico" onsubmit="salvarEdicaoServico(event)">
                 <input type="hidden" name="id_servico" id="edit-id-servico">
                 <div class="space-y-4">
@@ -462,45 +520,43 @@
         </div>
     </div>
 
-    <!-- 10. MODAL DETALHES PACOTE (ATUALIZADO) -->
+    <!-- MODAL DETALHES PACOTE -->
     <div id="modal-detalhes-pacote" class="modal-overlay">
         <div class="modal-card">
-            <!-- Cabeçalho do Modal -->
             <div class="flex justify-between items-start mb-2">
                 <h3 class="text-xl font-bold text-slate-800">Detalhes do Pacote</h3>
                 <button onclick="fecharModal('modal-detalhes-pacote')"><i data-lucide="x" class="text-slate-400"></i></button>
             </div>
             
-            <!-- Informações Gerais da Transação -->
             <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4 text-sm space-y-1">
                 <p class="flex justify-between"><span class="text-slate-500">Transação:</span> <span id="pacote-info-id" class="font-mono font-bold text-slate-700">#---</span></p>
                 <p class="flex justify-between"><span class="text-slate-500">Valor Total:</span> <span id="pacote-info-valor" class="font-bold text-green-600">R$ 0,00</span></p>
                 <p class="flex justify-between"><span class="text-slate-500">Data Compra:</span> <span id="pacote-info-data" class="font-bold text-slate-700">--/--/----</span></p>
             </div>
 
-            <!-- Abas de Navegação Interna -->
             <div class="modal-tabs">
                 <div id="tab-btn-saldos" class="modal-tab active" onclick="switchModalTab('saldos')">Saldos</div>
                 <div id="tab-btn-historico" class="modal-tab" onclick="switchModalTab('historico')">Histórico</div>
             </div>
 
-            <!-- Conteúdo das Abas -->
             <div id="tab-modal-saldos" class="modal-tab-content active space-y-3 max-h-60 overflow-y-auto"></div>
             <div id="tab-modal-historico" class="modal-tab-content space-y-2 max-h-60 overflow-y-auto">
                 <p class="text-center text-slate-400 text-sm">Carregando...</p>
             </div>
 
-            <!-- Botão de Relatório -->
             <button onclick="enviarRelatorioPacote()" class="w-full mt-6 py-3 bg-green-50 text-green-700 font-bold rounded-xl btn-anim flex items-center justify-center gap-2 border border-green-200">
                 <i data-lucide="message-circle" class="w-5 h-5"></i> Enviar Relatório
             </button>
         </div>
     </div>
 
-    <!-- 11. MODAL NOVO USUÁRIO -->
+    <!-- MODAL NOVO USUÁRIO -->
     <div id="modal-usuario" class="modal-overlay">
         <div class="modal-card">
-            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Novo Profissional</h3><button onclick="fecharModal('modal-usuario')"><i data-lucide="x" class="text-slate-400"></i></button></div>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Novo Profissional</h3>
+                <button onclick="fecharModal('modal-usuario')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
             <form id="form-usuario" onsubmit="salvarUsuario(event)">
                 <div class="space-y-4">
                     <input type="text" name="nome" required placeholder="Nome" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
@@ -513,10 +569,9 @@
         </div>
     </div>
 
-    <!-- 12. MODAL DETALHES AGENDAMENTO (NOVO DESIGN) -->
+    <!-- MODAL DETALHES AGENDAMENTO -->
     <div id="modal-detalhes" class="modal-overlay">
         <div class="modal-card">
-            <!-- Cabeçalho com Nome e Status -->
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <h3 id="detalhe-cliente" class="text-2xl font-bold text-slate-800 leading-tight">Cliente</h3>
@@ -527,7 +582,6 @@
                 </div>
             </div>
 
-            <!-- Card de Info -->
             <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-6 flex justify-between items-center">
                 <div>
                     <div class="flex items-center gap-2 mb-1">
@@ -544,7 +598,6 @@
                 </div>
             </div>
 
-            <!-- WhatsApp Actions (Fila do Meio) -->
             <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Comunicação</h4>
             <div class="grid grid-cols-3 gap-3 mb-6">
                 <button onclick="enviarLembrete()" class="whatsapp-btn btn-anim">
@@ -561,7 +614,6 @@
                 </button>
             </div>
 
-            <!-- Ações Administrativas (Rodapé) -->
             <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Ações</h4>
             <div class="space-y-3">
                 <button id="btn-confirmar" onclick="prepararStatus('Confirmado', this)" class="w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-100 flex items-center justify-center gap-2 btn-anim">
@@ -594,7 +646,8 @@
         <div class="nav-item active" onclick="switchTab('agenda', this)"><i data-lucide="calendar"></i><span>Agenda</span></div>
         <div class="nav-item admin-only" onclick="switchTab('servicos', this)"><i data-lucide="sparkles"></i><span>Serviços</span></div>
         <div class="nav-item admin-only" onclick="switchTab('pacotes', this)"><i data-lucide="package"></i><span>Pacotes</span></div>
-        <div class="nav-item admin-only" onclick="switchTab('equipa', this)"><i data-lucide="users"></i><span>Equipa</span></div>
+        <div class="nav-item" onclick="switchTab('clientes', this)"><i data-lucide="users"></i><span>Clientes</span></div>
+        <div class="nav-item admin-only" onclick="switchTab('equipa', this)"><i data-lucide="briefcase"></i><span>Equipa</span></div>
         <div class="nav-item admin-only" onclick="switchTab('config', this)"><i data-lucide="settings-2"></i><span>Config</span></div>
     </nav>
 
@@ -603,6 +656,7 @@
     <script src="js/utils.js"></script>
     <script src="js/agenda.js"></script>
     <script src="js/pacotes.js"></script>
+    <script src="js/clientes.js"></script> <!-- NOVO ARQUIVO DE LÓGICA DE CLIENTES -->
     <script src="js/admin.js"></script>
     <script src="js/app.js"></script>
 </body>
