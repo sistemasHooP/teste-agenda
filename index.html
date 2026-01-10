@@ -9,7 +9,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Folha de Estilos Externa -->
+    <!-- Folha de Estilos Externa (deve estar na raiz ou numa pasta css/) -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -562,6 +562,12 @@
     </nav>
 
     <!-- SCRIPTS -->
-    <script src="app.js"></script>
+    <!-- Script de lógica principal, certifique-se de que os arquivos auxiliares (js/globals.js, etc.) sejam importados corretamente se estiver usando módulos separados -->
+    <script src="js/globals.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/agenda.js"></script>
+    <script src="js/pacotes.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
