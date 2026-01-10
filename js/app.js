@@ -68,7 +68,7 @@ function logout() {
     location.reload(); 
 }
 
-// --- NAVEGAÇÃO E TABS (REINSERIDO) ---
+// --- NAVEGAÇÃO E TABS ---
 
 function switchTab(t, el) { 
     abaAtiva = t; 
@@ -88,7 +88,6 @@ function switchTab(t, el) {
     
     // Lógicas específicas ao entrar na aba
     if (t === 'pacotes') {
-        // Se a função existir (carregada do js/pacotes.js)
         if(typeof mudarAbaPacotes === 'function') mudarAbaPacotes('ativos'); 
         if(typeof carregarPacotes === 'function') carregarPacotes(); 
     }
@@ -104,7 +103,6 @@ function switchConfigTab(tab) {
     const btnGeral = document.getElementById('btn-cfg-geral');
     const btnMsg = document.getElementById('btn-cfg-msg');
 
-    // Reset visual dos botões
     if(btnGeral) btnGeral.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
     if(btnMsg) btnMsg.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
 
@@ -130,7 +128,7 @@ function switchModalTab(tab) {
 
 function acaoFab() { 
     if (abaAtiva === 'servicos' && typeof abrirModalServico === 'function') abrirModalServico(); 
-    else if (abaAtiva === 'agenda' && typeof abrirModalAgendamento === 'function') abrirModalAgendamento(); 
+    else if (abaAtiva === 'agenda') abrirModalAgendamento(); 
     else if (abaAtiva === 'pacotes' && typeof abrirModalVenderPacote === 'function') abrirModalVenderPacote(); 
     else if (abaAtiva === 'equipa' && typeof abrirModalUsuario === 'function') abrirModalUsuario(); 
 }
@@ -138,7 +136,7 @@ function acaoFab() {
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 function iniciarApp() {
-    // 1. Alternar visualização (Esconder Login, Mostrar App)
+    // Alternar visualização
     document.getElementById('login-screen').style.display = 'none'; 
     document.getElementById('app-header').classList.remove('hidden'); 
     document.getElementById('app-header').classList.add('flex'); 
@@ -147,11 +145,10 @@ function iniciarApp() {
     document.getElementById('main-fab').classList.remove('hidden'); 
     document.getElementById('main-fab').classList.add('flex'); 
     
-    // 2. Configurar cabeçalho com nome do utilizador
+    // Configurar UI
     document.getElementById('user-name-display').innerText = `Olá, ${currentUser.nome}`; 
     document.getElementById('tab-agenda').classList.add('active');
     
-    // 3. Configurar permissões e filtros de profissional
     currentProfId = String(currentUser.id_usuario); 
     if (currentUser.nivel !== 'admin') { 
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none'); 
@@ -159,20 +156,17 @@ function iniciarApp() {
         document.getElementById('select-profissional-agenda').classList.remove('hidden'); 
     }
     
-    // 4. Inicializar componentes visuais (Color Pickers)
     if(typeof renderizarColorPicker === 'function') renderizarColorPicker(); 
     if(typeof renderizarColorPickerEdicao === 'function') renderizarColorPickerEdicao(); 
     
-    // 5. Carregar dados
     carregarDoCache(); 
     sincronizarDadosAPI(); 
     
-    // 6. Iniciar ciclo de atualização automática (Polling) a cada 15s
+    // Polling a cada 15s
     pollingInterval = setInterval(() => recarregarAgendaComFiltro(true), 15000);
 }
 
 function carregarDoCache() {
-    // Carregar dados do localStorage para as variáveis globais
     if(typeof getFromCache !== 'function') return;
 
     const cachedServicos = getFromCache('servicos');
@@ -182,38 +176,27 @@ function carregarDoCache() {
     const cachedClientes = getFromCache('clientes');
     const cachedPacotes = getFromCache('pacotes');
 
-    // Atualizar UI com dados em cache (se existirem)
     if (cachedServicos) { 
         servicosCache = cachedServicos; 
         if(typeof renderizarListaServicos === 'function') renderizarListaServicos(); 
         if(typeof atualizarDatalistServicos === 'function') atualizarDatalistServicos(); 
     }
-    
     if (cachedConfig) { 
         config = cachedConfig; 
         if(typeof atualizarUIConfig === 'function') atualizarUIConfig(); 
     }
-    
     if (cachedUsuarios) { 
         usuariosCache = cachedUsuarios; 
         if(typeof renderizarListaUsuarios === 'function') renderizarListaUsuarios(); 
         if(typeof popularSelectsUsuarios === 'function') popularSelectsUsuarios(); 
     }
-    
-    if (cachedAgendamentos) { 
-        agendamentosRaw = cachedAgendamentos; 
-    }
-    
+    if (cachedAgendamentos) { agendamentosRaw = cachedAgendamentos; }
     if (cachedClientes) { 
         clientesCache = cachedClientes; 
         if(typeof atualizarDatalistClientes === 'function') atualizarDatalistClientes(); 
     }
+    if (cachedPacotes) { pacotesCache = cachedPacotes; }
     
-    if (cachedPacotes) { 
-        pacotesCache = cachedPacotes; 
-    }
-    
-    // Renderizar a agenda principal
     if(typeof atualizarDataEPainel === 'function') atualizarDataEPainel();
 }
 
@@ -223,7 +206,6 @@ async function sincronizarDadosAPI() {
     const hasData = document.querySelectorAll('.time-slot').length > 0; 
     const container = document.getElementById('agenda-timeline'); 
     
-    // Feedback visual se não houver dados
     if (!hasData && agendamentosRaw.length === 0 && container) { 
         container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>'; 
     } else { 
@@ -241,7 +223,6 @@ async function sincronizarDadosAPI() {
             } 
         };
         
-        // Buscar todos os dados em paralelo
         const [resConfig, resServicos, resClientes, resPacotes, resAgendamentos, resUsuarios] = await Promise.all([ 
             fetchSafe('getConfig'), 
             fetchSafe('getServicos'), 
@@ -251,7 +232,6 @@ async function sincronizarDadosAPI() {
             currentUser.nivel === 'admin' ? fetchSafe('getUsuarios') : Promise.resolve([]) 
         ]);
         
-        // Atualizar Estado Global e Cache
         if (resConfig && resConfig.abertura) { 
             config = resConfig; 
             if (!config.horarios_semanais) config.horarios_semanais = []; 
@@ -263,13 +243,8 @@ async function sincronizarDadosAPI() {
         if(Array.isArray(resClientes)) { clientesCache = resClientes; saveToCache('clientes', clientesCache); }
         if(Array.isArray(resPacotes)) { pacotesCache = resPacotes; saveToCache('pacotes', pacotesCache); }
         if(Array.isArray(resAgendamentos)) { agendamentosRaw = resAgendamentos; saveToCache('agendamentos', agendamentosRaw); }
+        if(Array.isArray(resUsuarios) && resUsuarios.length > 0) { usuariosCache = resUsuarios; saveToCache('usuarios', usuariosCache); }
         
-        if(Array.isArray(resUsuarios) && resUsuarios.length > 0) { 
-            usuariosCache = resUsuarios; 
-            saveToCache('usuarios', usuariosCache); 
-        }
-        
-        // Atualizar Interfaces dos Módulos
         if(typeof atualizarDataEPainel === 'function') atualizarDataEPainel(); 
         if(typeof atualizarDatalistServicos === 'function') atualizarDatalistServicos(); 
         if(typeof atualizarDatalistClientes === 'function') atualizarDatalistClientes(); 
@@ -292,23 +267,20 @@ async function sincronizarDadosAPI() {
 }
 
 function recarregarAgendaComFiltro(silencioso = false) {
-    if (isSaving) return; // Não recarregar se estiver a salvar algo
+    if (isSaving) return;
 
     if (!silencioso && typeof showSyncIndicator === 'function') showSyncIndicator(true);
     
-    // Preservar estado do modal aberto
     const modalIdInput = document.getElementById('id-agendamento-ativo'); 
     const activeTempId = (modalIdInput && String(modalIdInput.value).startsWith('temp_')) ? modalIdInput.value : null; 
     let tempItem = null; 
     if (activeTempId) { tempItem = agendamentosRaw.find(a => a.id_agendamento === activeTempId); }
     
-    // Manter temporários locais que ainda não foram salvos
     const currentTemps = agendamentosRaw.filter(a => String(a.id_agendamento).startsWith('temp_'));
 
     fetch(`${API_URL}?action=getAgendamentos`).then(r => r.json()).then(dados => {
         let novosAgendamentos = Array.isArray(dados) ? dados : [];
         
-        // Reconciliação de IDs temporários
         if (activeTempId && tempItem) {
             const realItem = novosAgendamentos.find(a => a.data_agendamento === tempItem.data_agendamento && a.hora_inicio === tempItem.hora_inicio && (a.nome_cliente === tempItem.nome_cliente || (a.observacoes && a.observacoes.includes(tempItem.nome_cliente))) );
             if (realItem) { 
@@ -317,9 +289,7 @@ function recarregarAgendaComFiltro(silencioso = false) {
             }
         }
         
-        // Mesclar
         novosAgendamentos = [...novosAgendamentos, ...currentTemps];
-        
         agendamentosRaw = novosAgendamentos; 
         saveToCache('agendamentos', agendamentosRaw); 
         
@@ -331,13 +301,207 @@ function recarregarAgendaComFiltro(silencioso = false) {
     });
 }
 
-// --- TRATAMENTO DE STATUS E EXCLUSÃO (CORRIGIDO) ---
+function mudarProfissionalAgenda() { 
+    currentProfId = document.getElementById('select-profissional-agenda').value; 
+    if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual(); 
+}
+
+// --- MODAIS DA AGENDA (LÓGICA PRINCIPAL) ---
+
+function abrirModalAgendamento(h) { 
+    document.getElementById('modal-agendamento').classList.add('open'); 
+    document.getElementById('input-data-modal').value = dataAtual.toISOString().split('T')[0]; 
+    if (h) document.getElementById('input-hora-modal').value = h; 
+    
+    if (currentUser.nivel === 'admin') { 
+        document.getElementById('div-select-prof-modal').classList.remove('hidden'); 
+        document.getElementById('select-prof-modal').value = currentProfId; 
+    } else { 
+        document.getElementById('div-select-prof-modal').classList.add('hidden'); 
+    } 
+}
+
+function abrirModalEditarAgendamento() { 
+    const id = document.getElementById('id-agendamento-ativo').value; 
+    const ag = agendamentosCache.find(x => x.id_agendamento === id); 
+    if (!ag) return; 
+    
+    fecharModal('modal-detalhes'); 
+    document.getElementById('edit-agenda-id').value = id; 
+    document.getElementById('edit-agenda-cliente').innerText = ag.nome_cliente; 
+    const svc = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico)); 
+    document.getElementById('edit-agenda-servico').innerText = svc ? svc.nome_servico : 'Serviço'; 
+    document.getElementById('edit-agenda-data').value = ag.data_agendamento; 
+    document.getElementById('edit-agenda-hora').value = ag.hora_inicio; 
+    document.getElementById('modal-editar-agendamento').classList.add('open'); 
+}
+
+async function salvarEdicaoAgendamento(e) { 
+    e.preventDefault(); 
+    const btn = document.getElementById('btn-salvar-edicao-agenda'); 
+    const originalText = btn.innerText; 
+    setLoading(btn, true, originalText); 
+    const id = document.getElementById('edit-agenda-id').value; 
+    const novaData = document.getElementById('edit-agenda-data').value; 
+    const novoHorario = document.getElementById('edit-agenda-hora').value; 
+    
+    try { 
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateAgendamentoDataHora', id_agendamento: id, data_agendamento: novaData, hora_inicio: novoHorario }) }); 
+        fecharModal('modal-editar-agendamento'); 
+        recarregarAgendaComFiltro(); 
+        mostrarAviso('Agendamento atualizado!'); 
+    } catch (err) { 
+        mostrarAviso('Erro.'); 
+    } finally { 
+        setLoading(btn, false, originalText); 
+    } 
+}
+
+// --- BLOQUEIO DE HORÁRIOS ---
+
+function abrirModalBloqueio() {
+    document.getElementById('input-data-bloqueio').value = dataAtual.toISOString().split('T')[0];
+    document.getElementById('modal-bloqueio').classList.add('open');
+}
+
+async function salvarBloqueio(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-bloqueio');
+    const originalText = btn.innerText;
+    setLoading(btn, true, 'Salvando...');
+    
+    const f = e.target;
+    const dataAg = f.data_agendamento.value;
+    const horaIni = f.hora_inicio.value;
+    const duracao = f.duracao_minutos.value;
+    const motivo = f.motivo.value;
+    
+    fecharModal('modal-bloqueio');
+    
+    // Otimista
+    const tempId = 'blk_' + Date.now();
+    const novoBloqueio = {
+        id_agendamento: tempId,
+        id_cliente: 'SYSTEM',
+        id_servico: 'BLOQUEIO',
+        data_agendamento: dataAg,
+        hora_inicio: horaIni,
+        hora_fim: calcularHoraFim(horaIni, duracao),
+        status: 'Bloqueado',
+        nome_cliente: motivo || 'Bloqueio',
+        id_profissional: currentProfId
+    };
+    
+    agendamentosRaw.push(novoBloqueio);
+    saveToCache('agendamentos', agendamentosRaw);
+    if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual();
+    
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'bloquearHorario',
+                data_agendamento: dataAg,
+                hora_inicio: horaIni,
+                duracao_minutos: duracao,
+                motivo: motivo,
+                id_profissional: currentProfId
+            })
+        });
+        
+        recarregarAgendaComFiltro(); 
+        mostrarAviso('Horário bloqueado com sucesso.');
+    } catch(err) {
+        console.error(err);
+        mostrarAviso('Erro ao bloquear horário.');
+        agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId);
+        saveToCache('agendamentos', agendamentosRaw);
+        if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual();
+    } finally {
+        setLoading(btn, false, originalText);
+        f.reset();
+    }
+}
+
+// --- TRATAMENTO DE STATUS E MODAL DETALHES ---
+
+function abrirModalDetalhes(id) { 
+    const ag = agendamentosCache.find(a => a.id_agendamento === id); if(!ag) return; 
+    
+    document.getElementById('id-agendamento-ativo').value = id; 
+    const idPacote = ag.id_pacote_usado || ag.id_pacote || ''; 
+    document.getElementById('id-pacote-agendamento-ativo').value = idPacote;
+    const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico)); 
+    const nomeCliente = ag.nome_cliente || ag.observacoes || 'Cliente'; 
+    const isConcluido = ag.status === 'Concluido';
+    const isCancelado = ag.status === 'Cancelado';
+
+    document.getElementById('detalhe-cliente').innerText = nomeCliente;
+    document.getElementById('detalhe-servico').innerText = servico ? servico.nome_servico : 'Serviço';
+    document.getElementById('detalhe-data').innerText = formatarDataBr(ag.data_agendamento);
+    document.getElementById('detalhe-hora').innerText = `${ag.hora_inicio} - ${ag.hora_fim}`;
+    
+    const badge = document.getElementById('detalhe-status-badge');
+    badge.innerText = ag.status || 'Agendado';
+    badge.className = 'px-3 py-1 rounded-lg text-xs font-bold uppercase ';
+    
+    if(isConcluido) badge.className += 'bg-slate-200 text-slate-600';
+    else if(isCancelado) badge.className += 'bg-red-100 text-red-600';
+    else if(ag.status === 'Confirmado') badge.className += 'bg-green-100 text-green-700';
+    else badge.className += 'bg-blue-100 text-blue-700';
+
+    // Controlo de Botões
+    const btnEditar = document.getElementById('btn-editar-horario');
+    const btnCancelar = document.getElementById('btn-cancelar');
+    const btnExcluir = document.getElementById('btn-excluir');
+    const btnConfirmar = document.getElementById('btn-confirmar');
+    const btnConcluir = document.getElementById('btn-concluir');
+
+    // Reset estados
+    btnConfirmar.disabled = false;
+    btnConfirmar.classList.remove('opacity-70', 'cursor-default');
+    btnConfirmar.classList.add('btn-anim');
+
+    if (isConcluido || isCancelado) {
+        btnEditar.style.display = 'none';
+        btnCancelar.style.display = 'none';
+        btnConfirmar.style.display = 'none';
+        btnConcluir.style.display = 'none';
+        btnExcluir.style.display = 'block'; 
+    } else {
+        btnEditar.style.display = 'flex';
+        btnCancelar.style.display = 'flex';
+        btnExcluir.style.display = 'none';
+        
+        if (ag.status === 'Confirmado') {
+            btnConfirmar.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Já Confirmado';
+            btnConfirmar.className = "w-full p-3 bg-green-50 text-green-700 font-bold rounded-xl text-sm border border-green-200 flex items-center justify-center gap-2 cursor-default opacity-70";
+            btnConfirmar.disabled = true;
+            btnConfirmar.onclick = null;
+            btnConfirmar.style.display = 'flex';
+            btnConcluir.style.display = 'flex';
+        } else {
+            btnConfirmar.innerHTML = '<i data-lucide="thumbs-up" class="w-4 h-4"></i> Confirmar Presença';
+            btnConfirmar.className = "w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-100 flex items-center justify-center gap-2 btn-anim";
+            
+            // Re-bind click event para remover antigos
+            const nBtn = btnConfirmar.cloneNode(true);
+            btnConfirmar.parentNode.replaceChild(nBtn, btnConfirmar);
+            nBtn.onclick = () => prepararStatus('Confirmado', nBtn);
+            
+            nBtn.style.display = 'flex';
+            btnConcluir.style.display = 'flex';
+        }
+    }
+    
+    document.getElementById('modal-detalhes').classList.add('open'); 
+    lucide.createIcons(); 
+}
 
 function prepararStatus(st, btnEl) { 
     const id = document.getElementById('id-agendamento-ativo').value; 
     const idPacote = document.getElementById('id-pacote-agendamento-ativo').value; 
     
-    // Busca o agendamento atual para verificar o status real
     const agendamentoAtual = agendamentosRaw.find(a => a.id_agendamento === id);
     const statusAtual = agendamentoAtual ? agendamentoAtual.status : '';
 
@@ -352,15 +516,13 @@ function prepararStatus(st, btnEl) {
     }
     
     if (st === 'Excluir') {
-        // CORREÇÃO CRÍTICA: Se já estiver Cancelado, não devolve crédito novamente.
         if (idPacote && statusAtual !== 'Cancelado') {
             mostrarConfirmacao('Apagar Agendamento', 'Este item pertence a um pacote. Deseja devolver o crédito ao cliente antes de apagar?', 
-                () => executarMudancaStatusOtimista(id, st, true), // Sim, devolver
-                () => executarMudancaStatusOtimista(id, st, false), // Não, apenas apagar
+                () => executarMudancaStatusOtimista(id, st, true), 
+                () => executarMudancaStatusOtimista(id, st, false), 
                 'Sim, Devolver', 'Não, só Apagar'
             );
         } else {
-            // Se não tem pacote OU já está cancelado, apenas apaga (sem opção de devolução)
             mostrarConfirmacao('Apagar Agendamento', 'Tem certeza que deseja apagar permanentemente este registro?', 
                 () => executarMudancaStatusOtimista(id, st, false)
             );
@@ -385,24 +547,20 @@ function prepararStatus(st, btnEl) {
 }
 
 async function executarMudancaStatusOtimista(id, st, devolver) {
-    if(typeof fecharModal === 'function') {
-        fecharModal('modal-confirmacao'); 
-        fecharModal('modal-detalhes');
-    }
+    fecharModal('modal-confirmacao'); 
+    fecharModal('modal-detalhes');
     
     const index = agendamentosRaw.findIndex(a => a.id_agendamento === id); 
     if (index === -1) return; 
     
     const backup = { ...agendamentosRaw[index] };
     
-    // Atualização otimista local
     if (st === 'Excluir') { 
         agendamentosRaw.splice(index, 1); 
     } else { 
         agendamentosRaw[index].status = st; 
     } 
     
-    // Se for devolver crédito, atualizar saldo do pacote otimisticamente
     if (devolver) {
         const idPacote = backup.id_pacote_usado || backup.id_pacote;
         const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
@@ -424,14 +582,12 @@ async function executarMudancaStatusOtimista(id, st, devolver) {
         
         if (data.status !== 'sucesso') { throw new Error(data.mensagem || 'Erro no servidor'); } 
         
-        // Recarregar pacotes se houve devolução para garantir sincronia
         if (devolver) setTimeout(() => { if(typeof carregarPacotes === 'function') carregarPacotes(); }, 1000); 
         
         if(typeof showSyncIndicator === 'function') showSyncIndicator(false); 
     } catch (e) { 
         console.error("Erro update status", e); 
         
-        // Rollback em caso de erro
         if (st === 'Excluir') agendamentosRaw.splice(index, 0, backup); 
         else agendamentosRaw[index] = backup; 
         
@@ -451,4 +607,75 @@ async function executarMudancaStatusOtimista(id, st, devolver) {
     } finally { 
         isSaving = false; 
     }
+}
+
+// --- WHATSAPP FUNCTIONS ---
+
+function getWhatsappCliente(idAgendamento) {
+    const ag = agendamentosCache.find(a => a.id_agendamento === idAgendamento);
+    if(!ag) return null;
+    
+    let cliente = clientesCache.find(c => String(c.id_cliente) === String(ag.id_cliente));
+    if(!cliente) cliente = clientesCache.find(c => c.nome === ag.nome_cliente);
+    
+    if(cliente && cliente.whatsapp) {
+        let nums = String(cliente.whatsapp).replace(/\D/g, ''); 
+        if (!nums.startsWith('55') && (nums.length === 10 || nums.length === 11)) {
+            nums = '55' + nums;
+        }
+        return nums;
+    }
+    return null;
+}
+
+function enviarLembrete() {
+    const id = document.getElementById('id-agendamento-ativo').value;
+    const ag = agendamentosCache.find(a => a.id_agendamento === id);
+    const numero = getWhatsappCliente(id);
+    
+    if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
+    
+    const servico = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico));
+    const nomeServico = servico ? servico.nome_servico : 'seu horário';
+    
+    let texto = config.mensagem_lembrete || "Olá {cliente}, seu agendamento é dia {data} às {hora}.";
+    
+    texto = texto.replace('{cliente}', ag.nome_cliente)
+                 .replace('{data}', formatarDataBr(ag.data_agendamento))
+                 .replace('{hora}', ag.hora_inicio)
+                 .replace('{servico}', nomeServico);
+    
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(texto)}`, '_blank');
+}
+
+function abrirSelecaoMsgRapida() {
+    const id = document.getElementById('id-agendamento-ativo').value;
+    const numero = getWhatsappCliente(id);
+    if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
+
+    const lista = document.getElementById('lista-selecao-msg');
+    lista.innerHTML = '';
+    
+    if(!config.mensagens_rapidas || config.mensagens_rapidas.length === 0) {
+        lista.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">Nenhuma mensagem cadastrada em Configurações.</p>';
+    } else {
+        config.mensagens_rapidas.forEach(msg => {
+            const btn = document.createElement('button');
+            btn.className = 'w-full text-left p-3 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 text-sm text-slate-700 transition-colors';
+            btn.innerText = msg;
+            btn.onclick = () => {
+                window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
+                fecharModal('modal-selecao-msg');
+            };
+            lista.appendChild(btn);
+        });
+    }
+    document.getElementById('modal-selecao-msg').classList.add('open');
+}
+
+function abrirChatDireto() {
+    const id = document.getElementById('id-agendamento-ativo').value;
+    const numero = getWhatsappCliente(id);
+    if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
+    window.open(`https://wa.me/${numero}`, '_blank');
 }
