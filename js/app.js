@@ -1,28 +1,24 @@
 // ==========================================
-// LÓGICA PRINCIPAL (CORE)
+// LÓGICA PRINCIPAL (CONTROLADOR)
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializar ícones da biblioteca Lucide
     if(typeof lucide !== 'undefined') lucide.createIcons();
     
-    // Verificar sessão salva no armazenamento local/sessão
+    // Verificar sessão
     const savedUser = localStorage.getItem('minhaAgendaUser') || sessionStorage.getItem('minhaAgendaUser');
     if (savedUser) { 
         currentUser = JSON.parse(savedUser); 
         iniciarApp(); 
     }
     
-    // Configurar listeners para fechar modais ao clicar no fundo (overlay)
+    // Listeners Globais
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                fecharModal(overlay.id);
-            }
+            if (e.target === overlay) fecharModal(overlay.id);
         });
     });
 
-    // Prevenir fecho acidental da aba durante sincronização ou salvamento
     window.addEventListener('beforeunload', function (e) {
         if (isSyncing || isSaving) {
             e.preventDefault();
@@ -68,75 +64,9 @@ function logout() {
     location.reload(); 
 }
 
-// --- NAVEGAÇÃO E TABS ---
-
-function switchTab(t, el) { 
-    abaAtiva = t; 
-    
-    // Atualiza classes dos botões da navbar
-    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active')); 
-    if(el) el.classList.add('active'); 
-    
-    // Alterna o conteúdo das abas
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); 
-    const tabContent = document.getElementById(`tab-${t}`);
-    if(tabContent) tabContent.classList.add('active'); 
-    
-    // Controla visibilidade do FAB (Botão Flutuante)
-    const fab = document.getElementById('main-fab');
-    if(fab) fab.style.display = t === 'config' ? 'none' : 'flex'; 
-    
-    // Lógicas específicas ao entrar na aba
-    if (t === 'pacotes') {
-        if(typeof mudarAbaPacotes === 'function') mudarAbaPacotes('ativos'); 
-        if(typeof carregarPacotes === 'function') carregarPacotes(); 
-    }
-    if (t === 'config') {
-        if(typeof atualizarUIConfig === 'function') atualizarUIConfig();
-    }
-}
-
-function switchConfigTab(tab) {
-    document.getElementById('cfg-area-geral').classList.add('hidden');
-    document.getElementById('cfg-area-msg').classList.add('hidden');
-    
-    const btnGeral = document.getElementById('btn-cfg-geral');
-    const btnMsg = document.getElementById('btn-cfg-msg');
-
-    if(btnGeral) btnGeral.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
-    if(btnMsg) btnMsg.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
-
-    if (tab === 'geral') {
-        document.getElementById('cfg-area-geral').classList.remove('hidden');
-        if(btnGeral) btnGeral.className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
-    } else {
-        document.getElementById('cfg-area-msg').classList.remove('hidden');
-        if(btnMsg) btnMsg.className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
-    }
-}
-
-function switchModalTab(tab) {
-    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
-    
-    const btn = document.getElementById(`tab-btn-${tab}`);
-    const content = document.getElementById(`tab-modal-${tab}`);
-    
-    if(btn) btn.classList.add('active');
-    if(content) content.classList.add('active');
-}
-
-function acaoFab() { 
-    if (abaAtiva === 'servicos' && typeof abrirModalServico === 'function') abrirModalServico(); 
-    else if (abaAtiva === 'agenda' && typeof abrirModalAgendamento === 'function') abrirModalAgendamento(); 
-    else if (abaAtiva === 'pacotes' && typeof abrirModalVenderPacote === 'function') abrirModalVenderPacote(); 
-    else if (abaAtiva === 'equipa' && typeof abrirModalUsuario === 'function') abrirModalUsuario(); 
-}
-
-// --- INICIALIZAÇÃO DA APLICAÇÃO ---
+// --- INICIALIZAÇÃO ---
 
 function iniciarApp() {
-    // Alternar visualização
     document.getElementById('login-screen').style.display = 'none'; 
     document.getElementById('app-header').classList.remove('hidden'); 
     document.getElementById('app-header').classList.add('flex'); 
@@ -145,7 +75,6 @@ function iniciarApp() {
     document.getElementById('main-fab').classList.remove('hidden'); 
     document.getElementById('main-fab').classList.add('flex'); 
     
-    // Configurar UI
     document.getElementById('user-name-display').innerText = `Olá, ${currentUser.nome}`; 
     document.getElementById('tab-agenda').classList.add('active');
     
@@ -156,51 +85,53 @@ function iniciarApp() {
         document.getElementById('select-profissional-agenda').classList.remove('hidden'); 
     }
     
+    // Inicializar componentes visuais (Funções em utils.js)
     if(typeof renderizarColorPicker === 'function') renderizarColorPicker(); 
     if(typeof renderizarColorPickerEdicao === 'function') renderizarColorPickerEdicao(); 
     
     carregarDoCache(); 
     sincronizarDadosAPI(); 
     
-    // Polling a cada 15s
     pollingInterval = setInterval(() => recarregarAgendaComFiltro(true), 15000);
 }
 
 function carregarDoCache() {
+    // Carrega dados e chama renderizações específicas de cada módulo
     if(typeof getFromCache !== 'function') return;
 
-    const cachedServicos = getFromCache('servicos');
-    const cachedConfig = getFromCache('config');
-    const cachedUsuarios = getFromCache('usuarios');
-    const cachedAgendamentos = getFromCache('agendamentos');
-    const cachedClientes = getFromCache('clientes');
-    const cachedPacotes = getFromCache('pacotes');
+    const cServicos = getFromCache('servicos');
+    const cConfig = getFromCache('config');
+    const cUsuarios = getFromCache('usuarios');
+    const cAgendamentos = getFromCache('agendamentos');
+    const cClientes = getFromCache('clientes');
+    const cPacotes = getFromCache('pacotes');
 
-    if (cachedServicos) { 
-        servicosCache = cachedServicos; 
-        if(typeof renderizarListaServicos === 'function') renderizarListaServicos(); 
-        if(typeof atualizarDatalistServicos === 'function') atualizarDatalistServicos(); 
+    if (cServicos) { 
+        servicosCache = cServicos; 
+        if(typeof renderizarListaServicos === 'function') renderizarListaServicos(); // admin.js
+        if(typeof atualizarDatalistServicos === 'function') atualizarDatalistServicos(); // admin.js
     }
-    if (cachedConfig) { 
-        config = cachedConfig; 
-        if(typeof atualizarUIConfig === 'function') atualizarUIConfig(); 
+    if (cConfig) { 
+        config = cConfig; 
+        if(typeof atualizarUIConfig === 'function') atualizarUIConfig(); // admin.js
     }
-    if (cachedUsuarios) { 
-        usuariosCache = cachedUsuarios; 
-        if(typeof renderizarListaUsuarios === 'function') renderizarListaUsuarios(); 
-        if(typeof popularSelectsUsuarios === 'function') popularSelectsUsuarios(); 
+    if (cUsuarios) { 
+        usuariosCache = cUsuarios; 
+        if(typeof renderizarListaUsuarios === 'function') renderizarListaUsuarios(); // admin.js
+        if(typeof popularSelectsUsuarios === 'function') popularSelectsUsuarios(); // admin.js
     }
-    if (cachedAgendamentos) { agendamentosRaw = cachedAgendamentos; }
-    if (cachedClientes) { 
-        clientesCache = cachedClientes; 
-        if(typeof atualizarDatalistClientes === 'function') atualizarDatalistClientes(); 
+    if (cAgendamentos) { agendamentosRaw = cAgendamentos; }
+    if (cClientes) { 
+        clientesCache = cClientes; 
+        if(typeof atualizarDatalistClientes === 'function') atualizarDatalistClientes(); // admin.js
     }
-    if (cachedPacotes) { pacotesCache = cachedPacotes; }
+    if (cPacotes) { pacotesCache = cPacotes; }
     
+    // Renderiza a Agenda (agenda.js)
     if(typeof atualizarDataEPainel === 'function') atualizarDataEPainel();
 }
 
-// --- SINCRONIZAÇÃO DE DADOS ---
+// --- SINCRONIZAÇÃO ---
 
 async function sincronizarDadosAPI() {
     const hasData = document.querySelectorAll('.time-slot').length > 0; 
@@ -245,13 +176,16 @@ async function sincronizarDadosAPI() {
         if(Array.isArray(resAgendamentos)) { agendamentosRaw = resAgendamentos; saveToCache('agendamentos', agendamentosRaw); }
         if(Array.isArray(resUsuarios) && resUsuarios.length > 0) { usuariosCache = resUsuarios; saveToCache('usuarios', usuariosCache); }
         
+        // Atualizar Interfaces
         if(typeof atualizarDataEPainel === 'function') atualizarDataEPainel(); 
         if(typeof atualizarDatalistServicos === 'function') atualizarDatalistServicos(); 
         if(typeof atualizarDatalistClientes === 'function') atualizarDatalistClientes(); 
         if(typeof renderizarListaServicos === 'function') renderizarListaServicos(); 
         
+        // Atualizar aba ativa se necessário
         if (currentUser.nivel === 'admin') { 
             if(abaAtiva === 'pacotes' && typeof renderizarListaPacotes === 'function') renderizarListaPacotes(); 
+            if(abaAtiva === 'clientes' && typeof renderizarListaClientes === 'function') renderizarListaClientes();
             if(typeof renderizarListaUsuarios === 'function') renderizarListaUsuarios(); 
             if(typeof popularSelectsUsuarios === 'function') popularSelectsUsuarios(); 
         }
@@ -301,127 +235,77 @@ function recarregarAgendaComFiltro(silencioso = false) {
     });
 }
 
+// --- NAVEGAÇÃO E MODAIS ---
+
+function switchTab(t, el) { 
+    abaAtiva = t; 
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active')); 
+    if(el) el.classList.add('active'); 
+    
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); 
+    const tabContent = document.getElementById(`tab-${t}`);
+    if(tabContent) tabContent.classList.add('active'); 
+    
+    const fab = document.getElementById('main-fab');
+    if(fab) fab.style.display = t === 'config' ? 'none' : 'flex'; 
+    
+    // Carregamento Lazy das abas
+    if (t === 'pacotes') {
+        if(typeof mudarAbaPacotes === 'function') mudarAbaPacotes('ativos'); 
+        if(typeof carregarPacotes === 'function') carregarPacotes(); 
+    }
+    if (t === 'clientes') {
+        if(typeof renderizarListaClientes === 'function') renderizarListaClientes();
+    }
+    if (t === 'config') {
+        if(typeof atualizarUIConfig === 'function') atualizarUIConfig();
+    }
+}
+
+function switchConfigTab(tab) {
+    document.getElementById('cfg-area-geral').classList.add('hidden');
+    document.getElementById('cfg-area-msg').classList.add('hidden');
+    
+    const btnGeral = document.getElementById('btn-cfg-geral');
+    const btnMsg = document.getElementById('btn-cfg-msg');
+
+    if(btnGeral) btnGeral.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
+    if(btnMsg) btnMsg.className = 'flex-1 py-2 text-sm font-bold text-slate-400';
+
+    if (tab === 'geral') {
+        document.getElementById('cfg-area-geral').classList.remove('hidden');
+        if(btnGeral) btnGeral.className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
+    } else {
+        document.getElementById('cfg-area-msg').classList.remove('hidden');
+        if(btnMsg) btnMsg.className = 'flex-1 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600';
+    }
+}
+
+function switchModalTab(tab) {
+    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+    
+    const btn = document.getElementById(`tab-btn-${tab}`);
+    const content = document.getElementById(`tab-modal-${tab}`);
+    
+    if(btn) btn.classList.add('active');
+    if(content) content.classList.add('active');
+}
+
+function acaoFab() { 
+    if (abaAtiva === 'servicos' && typeof abrirModalServico === 'function') abrirModalServico(); 
+    else if (abaAtiva === 'agenda' && typeof abrirModalAgendamento === 'function') abrirModalAgendamento(); 
+    else if (abaAtiva === 'pacotes' && typeof abrirModalVenderPacote === 'function') abrirModalVenderPacote(); 
+    else if (abaAtiva === 'equipa' && typeof abrirModalUsuario === 'function') abrirModalUsuario(); 
+    else if (abaAtiva === 'clientes' && typeof abrirModalCliente === 'function') abrirModalCliente(); 
+}
+
 function mudarProfissionalAgenda() { 
     currentProfId = document.getElementById('select-profissional-agenda').value; 
     if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual(); 
 }
 
-// --- RENDERIZAÇÃO DA GRADE (COM BLOQUEIOS CINZAS) ---
-
-function renderizarGrade() {
-    const container = document.getElementById('agenda-timeline'); if(!container) return; container.innerHTML = '';
-    const diaDaSemana = dataAtual.getDay();
-    let configDia = null;
-    if (config.horarios_semanais && Array.isArray(config.horarios_semanais)) {
-        configDia = config.horarios_semanais.find(h => parseInt(h.dia) === diaDaSemana);
-    }
-    if (!configDia || !configDia.ativo) {
-        container.innerHTML = `<div class="flex flex-col items-center justify-center h-64 text-slate-300"><i data-lucide="moon" class="w-12 h-12 mb-2"></i><p class="font-bold text-lg">Fechado</p><p class="text-xs">Não há atendimento neste dia.</p></div>`;
-        lucide.createIcons();
-        return;
-    }
-    const abertura = configDia.inicio || '08:00'; const fechamento = configDia.fim || '19:00';
-    const [hA, mA] = abertura.split(':').map(Number); const [hF, mF] = fechamento.split(':').map(Number); 
-    const startMin = hA*60 + mA; const endMin = hF*60 + mF; const interval = parseInt(config.intervalo_minutos) || 60; const dateIso = dataAtual.toISOString().split('T')[0];
-    
-    for(let m = startMin; m < endMin; m += interval) { 
-        const hSlot = Math.floor(m/60); const mSlot = m % 60; const timeStr = `${String(hSlot).padStart(2,'0')}:${String(mSlot).padStart(2,'0')}`; 
-        const div = document.createElement('div'); div.className = 'time-slot'; div.style.height = '80px'; 
-        div.innerHTML = `<div class="time-label">${timeStr}</div><div class="slot-content" id="slot-${m}"><div class="slot-livre-area" onclick="abrirModalAgendamento('${timeStr}')"></div></div>`; 
-        container.appendChild(div); 
-    }
-    
-    const events = agendamentosCache.filter(a => a.data_agendamento === dateIso && a.hora_inicio).map(a => { 
-        const [h, m] = a.hora_inicio.split(':').map(Number); 
-        const start = h * 60 + m; 
-        
-        let dur = 60;
-        let svc = null;
-
-        if (a.id_servico === 'BLOQUEIO') {
-             // Calcular duração real do bloqueio
-             if (a.hora_fim) {
-                 const [hEnd, mEnd] = a.hora_fim.split(':').map(Number);
-                 dur = (hEnd * 60 + mEnd) - start;
-             }
-        } else {
-             svc = servicosCache.find(s => String(s.id_servico) === String(a.id_servico)); 
-             dur = svc ? parseInt(svc.duracao_minutos) : 60; 
-        }
-
-        return { ...a, start, end: start + dur, dur, svc }; 
-    }).sort((a,b) => a.start - b.start);
-    
-    let groups = []; let lastEnd = -1; 
-    events.forEach(ev => { 
-        if(ev.start >= lastEnd) { groups.push([ev]); lastEnd = ev.end; } 
-        else { groups[groups.length-1].push(ev); if(ev.end > lastEnd) lastEnd = ev.end; } 
-    });
-    
-    groups.forEach(group => { 
-        const width = 100 / group.length; 
-        group.forEach((ev, idx) => { 
-            if(ev.start < startMin || ev.start >= endMin) return; 
-            const offset = (ev.start - startMin) % interval; 
-            const slotBase = ev.start - offset; 
-            const slotEl = document.getElementById(`slot-${slotBase}`); 
-            if(!slotEl) return; 
-            const height = (ev.dur / interval) * 80; 
-            const top = (offset / interval) * 80; 
-            const left = idx * width; 
-            
-            const card = document.createElement('div'); 
-            card.className = 'event-card'; 
-            card.style.top = `${top + 2}px`; 
-            card.style.height = `calc(${height}px - 4px)`; 
-            card.style.left = `calc(${left}% + 2px)`; 
-            card.style.width = `calc(${width}% - 4px)`; 
-            
-            const isBlock = ev.id_servico === 'BLOQUEIO' || ev.status === 'Bloqueado';
-
-            if (isBlock) {
-                // ESTILO BLOQUEIO (CINZA)
-                card.style.backgroundColor = '#f1f5f9'; // slate-100
-                card.style.borderLeftColor = '#64748b'; // slate-500
-                card.style.color = '#475569'; // slate-600
-                
-                const motivo = ev.nome_cliente || 'Bloqueado'; // Nome vira motivo
-                
-                card.innerHTML = `
-                    <div style="width:100%" class="font-bold truncate text-[10px] uppercase tracking-wide flex items-center gap-1">
-                        <i data-lucide="lock" class="w-3 h-3"></i>
-                        Bloqueado
-                    </div>
-                    <div class="text-[10px] truncate italic">${motivo}</div>
-                `;
-            } else {
-                // ESTILO AGENDAMENTO
-                const color = getCorServico(ev.svc); 
-                card.style.backgroundColor = hexToRgba(color, 0.15); 
-                card.style.borderLeftColor = color; 
-                card.style.color = '#1e293b'; 
-                let statusIcon = ''; 
-                if(ev.status === 'Confirmado') { 
-                    statusIcon = '<div class="absolute top-1 right-1 bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>'; 
-                    card.classList.add('status-confirmado'); 
-                } else if (ev.status === 'Concluido') card.classList.add('status-concluido'); 
-                else if (ev.status === 'Cancelado') card.classList.add('status-cancelado'); 
-                else card.style.borderLeftColor = color; 
-                
-                const name = ev.nome_cliente || ev.observacoes || 'Cliente'; 
-                card.innerHTML = `${statusIcon}<div style="width:90%" class="font-bold truncate text-[10px]">${name}</div>${width > 25 ? `<div class="text-xs truncate">${ev.hora_inicio} • ${ev.svc ? ev.svc.nome_servico : 'Serviço'}</div>` : ''}`; 
-            }
-
-            card.onclick = (e) => { 
-                e.stopPropagation(); 
-                abrirModalDetalhes(ev.id_agendamento); 
-            }; 
-            slotEl.appendChild(card); 
-        }); 
-    });
-}
-
-// --- MODAIS DA AGENDA (LÓGICA PRINCIPAL) ---
+// --- FUNÇÕES DE AGENDAMENTO E BLOQUEIO ---
 
 function abrirModalAgendamento(h, tabDefault = 'agendar') { 
     document.getElementById('modal-agendamento').classList.add('open'); 
@@ -468,43 +352,98 @@ function switchTipoAgendamento(tipo) {
     }
 }
 
-function abrirModalEditarAgendamento() { 
-    const id = document.getElementById('id-agendamento-ativo').value; 
-    const ag = agendamentosCache.find(x => x.id_agendamento === id); 
-    if (!ag) return; 
-    
-    fecharModal('modal-detalhes'); 
-    document.getElementById('edit-agenda-id').value = id; 
-    document.getElementById('edit-agenda-cliente').innerText = ag.nome_cliente; 
-    const svc = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico)); 
-    document.getElementById('edit-agenda-servico').innerText = svc ? svc.nome_servico : 'Serviço'; 
-    document.getElementById('edit-agenda-data').value = ag.data_agendamento; 
-    document.getElementById('edit-agenda-hora').value = ag.hora_inicio; 
-    document.getElementById('modal-editar-agendamento').classList.add('open'); 
-}
-
-async function salvarEdicaoAgendamento(e) { 
+async function salvarAgendamentoOtimista(e) { 
     e.preventDefault(); 
-    const btn = document.getElementById('btn-salvar-edicao-agenda'); 
-    const originalText = btn.innerText; 
-    setLoading(btn, true, originalText); 
-    const id = document.getElementById('edit-agenda-id').value; 
-    const novaData = document.getElementById('edit-agenda-data').value; 
-    const novoHorario = document.getElementById('edit-agenda-hora').value; 
+    const f = e.target; 
+    const nomeCliente = f.nome_cliente.value; 
+    const nomeServico = f.nome_servico.value; 
+    const dataAg = f.data_agendamento.value; 
+    const horaIni = f.hora_inicio.value;
     
-    try { 
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateAgendamentoDataHora', id_agendamento: id, data_agendamento: novaData, hora_inicio: novoHorario }) }); 
-        fecharModal('modal-editar-agendamento'); 
-        recarregarAgendaComFiltro(); 
-        mostrarAviso('Agendamento atualizado!'); 
-    } catch (err) { 
-        mostrarAviso('Erro.'); 
-    } finally { 
-        setLoading(btn, false, originalText); 
-    } 
-}
+    const cliente = clientesCache.find(c => c.nome === nomeCliente); 
+    const servico = servicosCache.find(s => s.nome_servico.toLowerCase() === nomeServico.toLowerCase()); 
+    
+    if (!servico) { 
+        mostrarAviso('Serviço não encontrado.'); 
+        return; 
+    }
+    
+    fecharModal('modal-agendamento');
+    
+    const tempId = 'temp_' + Date.now(); 
+    const profId = (currentUser.nivel === 'admin' && document.getElementById('select-prof-modal').value) ? document.getElementById('select-prof-modal').value : currentUser.id_usuario;
+    const novoItem = { 
+        id_agendamento: tempId, 
+        id_cliente: cliente ? cliente.id_cliente : 'novo', 
+        id_servico: servico.id_servico, 
+        data_agendamento: dataAg, 
+        hora_inicio: horaIni, 
+        hora_fim: calcularHoraFim(horaIni, servico.duracao_minutos), 
+        status: 'Agendado', 
+        nome_cliente: nomeCliente, 
+        id_profissional: profId, 
+        id_pacote_usado: document.getElementById('check-usar-pacote').checked ? document.getElementById('id-pacote-selecionado').value : '' 
+    };
+    
+    const usarPacote = document.getElementById('check-usar-pacote').checked;
+    const idPacote = document.getElementById('id-pacote-selecionado').value;
+    if (usarPacote && idPacote) {
+        const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
+        if (pIndex > -1) {
+            pacotesCache[pIndex].qtd_restante = Math.max(0, parseInt(pacotesCache[pIndex].qtd_restante) - 1);
+            saveToCache('pacotes', pacotesCache);
+        }
+    }
 
-// --- BLOQUEIO DE HORÁRIOS ---
+    agendamentosRaw.push(novoItem); 
+    saveToCache('agendamentos', agendamentosRaw); 
+    if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual();
+    showSyncIndicator(true); 
+    isSaving = true;
+    
+    try {
+        const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'createAgendamento', nome_cliente: nomeCliente, id_cliente: novoItem.id_cliente, id_servico: novoItem.id_servico, data_agendamento: dataAg, hora_inicio: horaIni, usar_pacote_id: novoItem.id_pacote_usado, id_profissional: profId }) });
+        const data = await res.json();
+        
+        if (data.status === 'erro') { throw new Error(data.mensagem); }
+
+        if (data.status === 'sucesso' && data.id_agendamento) { 
+            const idx = agendamentosRaw.findIndex(a => a.id_agendamento === tempId); 
+            if (idx !== -1) { 
+                agendamentosRaw[idx].id_agendamento = data.id_agendamento; 
+                if (data.id_cliente) agendamentosRaw[idx].id_cliente = data.id_cliente; 
+                saveToCache('agendamentos', agendamentosRaw); 
+                if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual();
+                
+                const modalIdInput = document.getElementById('id-agendamento-ativo'); 
+                if (modalIdInput && modalIdInput.value === tempId) { 
+                    modalIdInput.value = data.id_agendamento; 
+                    if(typeof abrirModalDetalhes === 'function') abrirModalDetalhes(data.id_agendamento); 
+                } 
+            } 
+        }
+        showSyncIndicator(false);
+    } catch (err) { 
+        console.error("Erro ao salvar", err); 
+        agendamentosRaw = agendamentosRaw.filter(a => a.id_agendamento !== tempId); 
+        saveToCache('agendamentos', agendamentosRaw); 
+        
+        if (usarPacote && idPacote) {
+            const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
+            if (pIndex > -1) {
+                pacotesCache[pIndex].qtd_restante = parseInt(pacotesCache[pIndex].qtd_restante) + 1;
+                saveToCache('pacotes', pacotesCache);
+            }
+        }
+
+        if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual();
+        mostrarAviso(err.message || 'Falha ao salvar agendamento.'); 
+        showSyncIndicator(false); 
+    } finally { 
+        isSaving = false; 
+    }
+    f.reset();
+}
 
 async function salvarBloqueio(e) {
     e.preventDefault();
@@ -518,7 +457,7 @@ async function salvarBloqueio(e) {
     const duracao = f.duracao_minutos.value;
     const motivo = f.motivo.value;
     
-    fecharModal('modal-agendamento'); // Fecha o modal unificado
+    fecharModal('modal-agendamento');
     
     // Otimista
     const tempId = 'blk_' + Date.now();
@@ -565,111 +504,54 @@ async function salvarBloqueio(e) {
     }
 }
 
-// --- TRATAMENTO DE STATUS E MODAL DETALHES ---
-
-function abrirModalDetalhes(id) { 
-    const ag = agendamentosCache.find(a => a.id_agendamento === id); if(!ag) return; 
+function abrirModalEditarAgendamento() { 
+    const id = document.getElementById('id-agendamento-ativo').value; 
+    const ag = agendamentosCache.find(x => x.id_agendamento === id); 
+    if (!ag) return; 
     
-    document.getElementById('id-agendamento-ativo').value = id; 
-    const idPacote = ag.id_pacote_usado || ag.id_pacote || ''; 
-    document.getElementById('id-pacote-agendamento-ativo').value = idPacote;
-
-    // Verificar se é bloqueio
-    const isBlock = ag.id_servico === 'BLOQUEIO' || ag.status === 'Bloqueado';
-    
-    const servico = isBlock ? null : servicosCache.find(s => String(s.id_servico) === String(ag.id_servico)); 
-    const nomeCliente = isBlock ? (ag.nome_cliente || 'Bloqueio de Agenda') : (ag.nome_cliente || 'Cliente');
-    const isConcluido = ag.status === 'Concluido';
-    const isCancelado = ag.status === 'Cancelado';
-
-    document.getElementById('detalhe-cliente').innerText = nomeCliente;
-    document.getElementById('detalhe-servico').innerText = isBlock ? 'Horário Indisponível' : (servico ? servico.nome_servico : 'Serviço');
-    document.getElementById('detalhe-data').innerText = formatarDataBr(ag.data_agendamento);
-    document.getElementById('detalhe-hora').innerText = `${ag.hora_inicio} - ${ag.hora_fim}`;
-    
-    const badge = document.getElementById('detalhe-status-badge');
-    badge.innerText = ag.status || 'Agendado';
-    badge.className = 'px-3 py-1 rounded-lg text-xs font-bold uppercase ';
-    
-    if(isBlock) badge.className += 'bg-slate-200 text-slate-600';
-    else if(isConcluido) badge.className += 'bg-slate-200 text-slate-600';
-    else if(isCancelado) badge.className += 'bg-red-100 text-red-600';
-    else if(ag.status === 'Confirmado') badge.className += 'bg-green-100 text-green-700';
-    else badge.className += 'bg-blue-100 text-blue-700';
-
-    // Controlo de Botões
-    const btnEditar = document.getElementById('btn-editar-horario');
-    const btnCancelar = document.getElementById('btn-cancelar');
-    const btnExcluir = document.getElementById('btn-excluir');
-    const btnConfirmar = document.getElementById('btn-confirmar');
-    const btnConcluir = document.getElementById('btn-concluir');
-
-    // Se for bloqueio, esconde opções de agendamento normal
-    if (isBlock) {
-        btnEditar.style.display = 'none';
-        btnCancelar.style.display = 'none';
-        btnConfirmar.style.display = 'none';
-        btnConcluir.style.display = 'none';
-        // Mostra apenas botão de excluir (desbloquear)
-        btnExcluir.style.display = 'block';
-        btnExcluir.innerHTML = 'Remover Bloqueio';
-        btnExcluir.className = "w-full p-3 bg-red-50 text-red-600 font-bold rounded-xl text-sm border border-red-100 flex items-center justify-center gap-2 btn-anim";
-    } else {
-        // Reset botão excluir para estilo padrão
-        btnExcluir.innerHTML = 'Apagar Permanentemente';
-        btnExcluir.className = "hidden w-full p-3 text-red-400 text-xs font-bold mt-2 hover:text-red-600";
-        
-        // Reset estados
-        if(btnConfirmar) {
-            btnConfirmar.disabled = false;
-            btnConfirmar.classList.remove('opacity-70', 'cursor-default');
-            btnConfirmar.classList.add('btn-anim');
-        }
-
-        if (isConcluido || isCancelado) {
-            if(btnEditar) btnEditar.style.display = 'none';
-            if(btnCancelar) btnCancelar.style.display = 'none';
-            if(btnConfirmar) btnConfirmar.style.display = 'none';
-            if(btnConcluir) btnConcluir.style.display = 'none';
-            if(btnExcluir) btnExcluir.style.display = 'block'; 
-        } else {
-            if(btnEditar) btnEditar.style.display = 'flex';
-            if(btnCancelar) btnCancelar.style.display = 'flex';
-            if(btnExcluir) btnExcluir.style.display = 'none';
-            
-            if (ag.status === 'Confirmado') {
-                btnConfirmar.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Já Confirmado';
-                btnConfirmar.className = "w-full p-3 bg-green-50 text-green-700 font-bold rounded-xl text-sm border border-green-200 flex items-center justify-center gap-2 cursor-default opacity-70";
-                btnConfirmar.disabled = true;
-                btnConfirmar.onclick = null;
-                btnConfirmar.style.display = 'flex';
-                btnConcluir.style.display = 'flex';
-            } else {
-                btnConfirmar.innerHTML = '<i data-lucide="thumbs-up" class="w-4 h-4"></i> Confirmar Presença';
-                btnConfirmar.className = "w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-100 flex items-center justify-center gap-2 btn-anim";
-                
-                // Re-bind click event para remover antigos
-                const nBtn = btnConfirmar.cloneNode(true);
-                btnConfirmar.parentNode.replaceChild(nBtn, btnConfirmar);
-                nBtn.onclick = () => prepararStatus('Confirmado', nBtn);
-                
-                nBtn.style.display = 'flex';
-                btnConcluir.style.display = 'flex';
-            }
-        }
-    }
-    
-    document.getElementById('modal-detalhes').classList.add('open'); 
-    lucide.createIcons(); 
+    fecharModal('modal-detalhes'); 
+    document.getElementById('edit-agenda-id').value = id; 
+    document.getElementById('edit-agenda-cliente').innerText = ag.nome_cliente; 
+    const svc = servicosCache.find(s => String(s.id_servico) === String(ag.id_servico)); 
+    document.getElementById('edit-agenda-servico').innerText = svc ? svc.nome_servico : 'Serviço'; 
+    document.getElementById('edit-agenda-data').value = ag.data_agendamento; 
+    document.getElementById('edit-agenda-hora').value = ag.hora_inicio; 
+    document.getElementById('modal-editar-agendamento').classList.add('open'); 
 }
+
+async function salvarEdicaoAgendamento(e) { 
+    e.preventDefault(); 
+    const btn = document.getElementById('btn-salvar-edicao-agenda'); 
+    const originalText = btn.innerText; 
+    setLoading(btn, true, originalText); 
+    const id = document.getElementById('edit-agenda-id').value; 
+    const novaData = document.getElementById('edit-agenda-data').value; 
+    const novoHorario = document.getElementById('edit-agenda-hora').value; 
+    
+    try { 
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateAgendamentoDataHora', id_agendamento: id, data_agendamento: novaData, hora_inicio: novoHorario }) }); 
+        fecharModal('modal-editar-agendamento'); 
+        recarregarAgendaComFiltro(); 
+        mostrarAviso('Agendamento atualizado!'); 
+    } catch (err) { 
+        mostrarAviso('Erro.'); 
+    } finally { 
+        setLoading(btn, false, originalText); 
+    } 
+}
+
+// --- TRATAMENTO DE STATUS ---
 
 function prepararStatus(st, btnEl) { 
     const id = document.getElementById('id-agendamento-ativo').value; 
     const idPacote = document.getElementById('id-pacote-agendamento-ativo').value; 
     
+    // Obter o objeto atualizado
     const agendamentoAtual = agendamentosRaw.find(a => a.id_agendamento === id);
-    const statusAtual = agendamentoAtual ? agendamentoAtual.status : '';
-    const isBlock = agendamentoAtual && (agendamentoAtual.id_servico === 'BLOQUEIO');
+    if (!agendamentoAtual) return;
+
+    const statusAtual = agendamentoAtual.status;
+    const isBlock = agendamentoAtual.id_servico === 'BLOQUEIO';
 
     const contentBotao = btnEl ? btnEl.innerHTML : '';
     
@@ -781,7 +663,7 @@ async function executarMudancaStatusOtimista(id, st, devolver) {
     }
 }
 
-// --- WHATSAPP FUNCTIONS ---
+// --- WHATSAPP & MODAL DETALHES ---
 
 function getWhatsappCliente(idAgendamento) {
     const ag = agendamentosCache.find(a => a.id_agendamento === idAgendamento);
@@ -850,4 +732,99 @@ function abrirChatDireto() {
     const numero = getWhatsappCliente(id);
     if(!numero) { mostrarAviso('Cliente sem WhatsApp cadastrado.'); return; }
     window.open(`https://wa.me/${numero}`, '_blank');
+}
+
+function abrirModalDetalhes(id) { 
+    const ag = agendamentosCache.find(a => a.id_agendamento === id); if(!ag) return; 
+    
+    document.getElementById('id-agendamento-ativo').value = id; 
+    const idPacote = ag.id_pacote_usado || ag.id_pacote || ''; 
+    document.getElementById('id-pacote-agendamento-ativo').value = idPacote;
+
+    // Verificar se é bloqueio
+    const isBlock = ag.id_servico === 'BLOQUEIO' || ag.status === 'Bloqueado';
+    
+    const servico = isBlock ? null : servicosCache.find(s => String(s.id_servico) === String(ag.id_servico)); 
+    const nomeCliente = isBlock ? (ag.nome_cliente || 'Bloqueio de Agenda') : (ag.nome_cliente || 'Cliente');
+    const isConcluido = ag.status === 'Concluido';
+    const isCancelado = ag.status === 'Cancelado';
+
+    document.getElementById('detalhe-cliente').innerText = nomeCliente;
+    document.getElementById('detalhe-servico').innerText = isBlock ? 'Horário Indisponível' : (servico ? servico.nome_servico : 'Serviço');
+    document.getElementById('detalhe-data').innerText = formatarDataBr(ag.data_agendamento);
+    document.getElementById('detalhe-hora').innerText = `${ag.hora_inicio} - ${ag.hora_fim}`;
+    
+    const badge = document.getElementById('detalhe-status-badge');
+    badge.innerText = ag.status || 'Agendado';
+    badge.className = 'px-3 py-1 rounded-lg text-xs font-bold uppercase ';
+    
+    if(isBlock) badge.className += 'bg-slate-200 text-slate-600';
+    else if(isConcluido) badge.className += 'bg-slate-200 text-slate-600';
+    else if(isCancelado) badge.className += 'bg-red-100 text-red-600';
+    else if(ag.status === 'Confirmado') badge.className += 'bg-green-100 text-green-700';
+    else badge.className += 'bg-blue-100 text-blue-700';
+
+    // Controlo de Botões
+    const btnEditar = document.getElementById('btn-editar-horario');
+    const btnCancelar = document.getElementById('btn-cancelar');
+    const btnExcluir = document.getElementById('btn-excluir');
+    const btnConfirmar = document.getElementById('btn-confirmar');
+    const btnConcluir = document.getElementById('btn-concluir');
+
+    // Reset estados
+    if(btnConfirmar) {
+        btnConfirmar.disabled = false;
+        btnConfirmar.classList.remove('opacity-70', 'cursor-default');
+        btnConfirmar.classList.add('btn-anim');
+    }
+
+    if (isConcluido || isCancelado) {
+        if(btnEditar) btnEditar.style.display = 'none';
+        if(btnCancelar) btnCancelar.style.display = 'none';
+        if(btnConfirmar) btnConfirmar.style.display = 'none';
+        if(btnConcluir) btnConcluir.style.display = 'none';
+        if(btnExcluir) {
+            btnExcluir.style.display = 'block'; 
+            btnExcluir.innerHTML = 'Apagar Permanentemente';
+            btnExcluir.className = "hidden w-full p-3 text-red-400 text-xs font-bold mt-2 hover:text-red-600";
+            btnExcluir.classList.remove('hidden');
+        }
+    } else if (isBlock) {
+        if(btnEditar) btnEditar.style.display = 'none';
+        if(btnCancelar) btnCancelar.style.display = 'none';
+        if(btnConfirmar) btnConfirmar.style.display = 'none';
+        if(btnConcluir) btnConcluir.style.display = 'none';
+        if(btnExcluir) {
+            btnExcluir.style.display = 'block';
+            btnExcluir.innerHTML = 'Remover Bloqueio';
+            btnExcluir.className = "w-full p-3 bg-red-50 text-red-600 font-bold rounded-xl text-sm border border-red-100 flex items-center justify-center gap-2 btn-anim";
+            btnExcluir.classList.remove('hidden');
+        }
+    } else {
+        if(btnEditar) btnEditar.style.display = 'flex';
+        if(btnCancelar) btnCancelar.style.display = 'flex';
+        if(btnExcluir) btnExcluir.style.display = 'none';
+        
+        if (ag.status === 'Confirmado') {
+            btnConfirmar.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Já Confirmado';
+            btnConfirmar.className = "w-full p-3 bg-green-50 text-green-700 font-bold rounded-xl text-sm border border-green-200 flex items-center justify-center gap-2 cursor-default opacity-70";
+            btnConfirmar.disabled = true;
+            btnConfirmar.onclick = null;
+            btnConfirmar.style.display = 'flex';
+            btnConcluir.style.display = 'flex';
+        } else {
+            btnConfirmar.innerHTML = '<i data-lucide="thumbs-up" class="w-4 h-4"></i> Confirmar Presença';
+            btnConfirmar.className = "w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl text-sm border border-blue-100 flex items-center justify-center gap-2 btn-anim";
+            
+            const nBtn = btnConfirmar.cloneNode(true);
+            btnConfirmar.parentNode.replaceChild(nBtn, btnConfirmar);
+            nBtn.onclick = () => prepararStatus('Confirmado', nBtn);
+            
+            nBtn.style.display = 'flex';
+            btnConcluir.style.display = 'flex';
+        }
+    }
+    
+    document.getElementById('modal-detalhes').classList.add('open'); 
+    lucide.createIcons(); 
 }
