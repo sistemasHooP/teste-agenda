@@ -13,8 +13,10 @@ let clientesCache = [];
 let pacotesCache = [];
 let usuariosCache = [];
 let itensPacoteTemp = [];
-let pacoteSelecionado = null; // Armazena o pacote aberto no modal (com histórico)
+let pacoteSelecionado = null; // Armazena o pacote aberto no modal
 let abaAtiva = 'agenda';
+let abaPacotesAtiva = 'ativos'; // 'ativos' ou 'historico'
+
 let config = { 
     abertura: '08:00', 
     fechamento: '19:00', 
@@ -47,7 +49,10 @@ function switchTab(t, el) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); 
     document.getElementById(`tab-${t}`).classList.add('active'); 
     document.getElementById('main-fab').style.display = t === 'config' ? 'none' : 'flex'; 
-    if (t === 'pacotes') carregarPacotes(); 
+    if (t === 'pacotes') {
+        mudarAbaPacotes('ativos'); // Reset para ativos ao abrir
+        carregarPacotes(); 
+    }
     if (t === 'config') atualizarUIConfig();
 }
 
@@ -1038,41 +1043,76 @@ function renderizarListaServicos() {
     lucide.createIcons(); 
 }
 
-// --- LÓGICA DE PACOTES (DETALHES E RENDERIZAÇÃO) ---
+// --- LÓGICA DE PACOTES (ATUALIZADA E COMPLETA) ---
+
+function mudarAbaPacotes(aba) {
+    abaPacotesAtiva = aba;
+    
+    // Atualiza botões
+    const btnAtivos = document.getElementById('btn-tab-pacotes-ativos');
+    const btnHist = document.getElementById('btn-tab-pacotes-historico');
+    
+    if (aba === 'ativos') {
+        btnAtivos.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all bg-white text-blue-600 shadow-sm";
+        btnHist.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all text-slate-500 hover:text-slate-700";
+    } else {
+        btnAtivos.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all text-slate-500 hover:text-slate-700";
+        btnHist.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all bg-white text-blue-600 shadow-sm";
+    }
+    
+    renderizarListaPacotes();
+}
 
 function renderizarListaPacotes() { 
     const container = document.getElementById('lista-pacotes'); 
+    const termoBusca = document.getElementById('search-pacotes') ? document.getElementById('search-pacotes').value.toLowerCase() : '';
     container.innerHTML = ''; 
     
     // Agrupar pacotes por id_transacao
     const grupos = {};
     
     pacotesCache.forEach(p => {
-        // Apenas mostrar se ainda tiver saldo
-        if (parseInt(p.qtd_restante) > 0) {
-            const id = p.id_transacao || 'sem_id_' + p.id_pacote;
-            if (!grupos[id]) {
-                grupos[id] = {
-                    id_transacao: p.id_transacao || 'N/A',
-                    nome_cliente: p.nome_cliente,
-                    data_compra: p.data_compra,
-                    valor_cobrado: p.valor_cobrado || 0,
-                    itens: []
-                };
-            }
-            grupos[id].itens.push(p);
+        const id = p.id_transacao || 'sem_id_' + p.id_pacote;
+        if (!grupos[id]) {
+            grupos[id] = {
+                id_transacao: p.id_transacao || 'N/A',
+                nome_cliente: p.nome_cliente,
+                data_compra: p.data_compra,
+                valor_cobrado: p.valor_cobrado || 0,
+                itens: []
+            };
         }
+        grupos[id].itens.push(p);
     });
 
-    const chaves = Object.keys(grupos);
-    if(chaves.length === 0) { 
-        container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote ativo.</div>'; 
+    let chaves = Object.keys(grupos);
+
+    // Filtro por Busca (Nome)
+    if (termoBusca) {
+        chaves = chaves.filter(key => grupos[key].nome_cliente.toLowerCase().includes(termoBusca));
+    }
+
+    // Filtro por Aba (Ativos vs Histórico)
+    chaves = chaves.filter(key => {
+        const grupo = grupos[key];
+        // Ativo = Tem pelo menos 1 item com saldo > 0
+        const temSaldo = grupo.itens.some(item => parseInt(item.qtd_restante) > 0);
+        
+        if (abaPacotesAtiva === 'ativos') return temSaldo;
+        return !temSaldo; // Histórico = Todos com saldo 0
+    });
+
+    if (chaves.length === 0) { 
+        container.innerHTML = '<div class="text-center text-slate-400 py-10">Nenhum pacote encontrado.</div>'; 
         return; 
     } 
     
     chaves.forEach(key => { 
         const g = grupos[key];
         const qtdItens = g.itens.length;
+        const totalRestante = g.itens.reduce((acc, i) => acc + parseInt(i.qtd_restante), 0);
+        const totalInicial = g.itens.reduce((acc, i) => acc + parseInt(i.qtd_total), 0);
+        
         const div = document.createElement('div'); 
         div.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors'; 
         div.onclick = () => abrirDetalhesPacote(key);
@@ -1081,10 +1121,10 @@ function renderizarListaPacotes() {
             <div class="flex justify-between items-start mb-2">
                 <div>
                     <h4 class="font-bold text-slate-800">${g.nome_cliente}</h4>
-                    <p class="text-xs text-slate-500">${formatarDataBr(g.data_compra)} • ${qtdItens} serviços</p>
+                    <p class="text-xs text-slate-500">${formatarDataBr(g.data_compra)} • Saldo: ${totalRestante}/${totalInicial}</p>
                 </div>
                 <div class="text-right">
-                    <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">Ver</span>
+                    <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-lg">Ver Detalhes</span>
                 </div>
             </div>
         `; 
