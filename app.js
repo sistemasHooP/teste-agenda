@@ -1048,6 +1048,7 @@ function renderizarListaServicos() {
 function mudarAbaPacotes(aba) {
     abaPacotesAtiva = aba;
     
+    // Atualiza botões
     const btnAtivos = document.getElementById('btn-tab-pacotes-ativos');
     const btnHist = document.getElementById('btn-tab-pacotes-historico');
     
@@ -1067,6 +1068,7 @@ function renderizarListaPacotes() {
     const termoBusca = document.getElementById('search-pacotes') ? document.getElementById('search-pacotes').value.toLowerCase() : '';
     container.innerHTML = ''; 
     
+    // Agrupar pacotes por id_transacao
     const grupos = {};
     
     pacotesCache.forEach(p => {
@@ -1085,18 +1087,28 @@ function renderizarListaPacotes() {
 
     let chaves = Object.keys(grupos);
 
-    // Filtro por Busca
+    // Ordenação Inteligente: Mais recentes primeiro
+    chaves.sort((a, b) => {
+        const dataA = grupos[a].data_compra; // YYYY-MM-DD
+        const dataB = grupos[b].data_compra;
+        if (dataA > dataB) return -1;
+        if (dataA < dataB) return 1;
+        return 0;
+    });
+
+    // Filtro por Busca (Nome)
     if (termoBusca) {
         chaves = chaves.filter(key => grupos[key].nome_cliente.toLowerCase().includes(termoBusca));
     }
 
-    // Filtro por Aba
+    // Filtro por Aba (Ativos vs Histórico)
     chaves = chaves.filter(key => {
         const grupo = grupos[key];
+        // Ativo = Tem pelo menos 1 item com saldo > 0
         const temSaldo = grupo.itens.some(item => parseInt(item.qtd_restante) > 0);
         
         if (abaPacotesAtiva === 'ativos') return temSaldo;
-        return !temSaldo; 
+        return !temSaldo; // Histórico = Todos com saldo 0
     });
 
     if (chaves.length === 0) { 
@@ -1134,23 +1146,29 @@ function abrirDetalhesPacote(idTransacao) {
     const divSaldos = document.getElementById('tab-modal-saldos');
     const divHist = document.getElementById('tab-modal-historico');
     
+    // Filtrar itens deste pacote
     const itens = pacotesCache.filter(p => p.id_transacao === idTransacao || (!p.id_transacao && idTransacao.startsWith('sem_id')));
     
     if (itens.length === 0) return;
 
+    // Collect IDs for history filtering
     const idsPacotes = itens.map(i => String(i.id_pacote));
 
+    // Get History from global agendamentosCache
     const historico = agendamentosCache.filter(ag => {
         const idUsado = String(ag.id_pacote_usado || ag.id_pacote || '');
         return idsPacotes.includes(idUsado);
     });
 
+    // Guardar para o relatório (INCLUDING HISTORY)
     pacoteSelecionado = { id: idTransacao, itens: itens, info: itens[0], historico: historico };
 
+    // Preencher Cabeçalho
     document.getElementById('pacote-info-id').innerText = '#' + (itens[0].id_transacao ? itens[0].id_transacao.slice(-6) : 'N/A');
     document.getElementById('pacote-info-valor').innerText = 'R$ ' + parseFloat(itens[0].valor_cobrado || 0).toFixed(2);
     document.getElementById('pacote-info-data').innerText = formatarDataBr(itens[0].data_compra);
 
+    // Renderizar Saldos
     divSaldos.innerHTML = '';
     itens.forEach(item => {
         const percent = (item.qtd_restante / item.qtd_total) * 100;
@@ -1166,6 +1184,7 @@ function abrirDetalhesPacote(idTransacao) {
             </div>`;
     });
 
+    // Renderizar Histórico (UI Display)
     divHist.innerHTML = '';
     if (historico.length === 0) {
         divHist.innerHTML = '<p class="text-center text-slate-400 text-sm py-4">Nenhum uso registrado.</p>';
@@ -1186,6 +1205,7 @@ function abrirDetalhesPacote(idTransacao) {
         });
     }
     
+    // Resetar aba para Saldos
     switchModalTab('saldos');
     modal.classList.add('open');
 }
