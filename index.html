@@ -90,7 +90,7 @@
                 </div>
             </div>
             
-            <!-- Barra de Dias da Semana -->
+            <!-- Barra de Dias da Semana (Injetado via JS) -->
             <div id="week-strip" class="week-strip"></div>
         </div>
 
@@ -118,12 +118,26 @@
         </div>
     </div>
 
-    <!-- 3. PACOTES -->
+    <!-- 3. PACOTES (COM PESQUISA E HISTÓRICO) -->
     <div id="tab-pacotes" class="tab-content admin-only">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-bold text-slate-800">Pacotes Vendidos</h2>
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-slate-800">Pacotes</h2>
             <button onclick="abrirModalVenderPacote()" class="text-blue-600 text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg btn-anim">+ Vender</button>
         </div>
+
+        <!-- Barra de Pesquisa e Filtros -->
+        <div class="mb-4 space-y-3">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4"></i>
+                <input type="text" id="search-pacotes" onkeyup="renderizarListaPacotes()" placeholder="Buscar cliente..." class="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none text-sm shadow-sm focus:ring-2 focus:ring-blue-100">
+            </div>
+            
+            <div class="flex bg-slate-100 p-1 rounded-xl">
+                <button onclick="mudarAbaPacotes('ativos')" id="btn-tab-pacotes-ativos" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all bg-white text-blue-600 shadow-sm">Ativos</button>
+                <button onclick="mudarAbaPacotes('historico')" id="btn-tab-pacotes-historico" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all text-slate-500 hover:text-slate-700">Histórico</button>
+            </div>
+        </div>
+
         <div id="lista-pacotes" class="space-y-3 pb-24">
             <div class="text-center text-slate-400 py-10">Carregando pacotes...</div>
         </div>
