@@ -9,7 +9,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Folha de Estilos Externa (deve estar na raiz ou numa pasta css/) -->
+    <!-- Folha de Estilos Externa -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -77,7 +77,12 @@
         <div class="calendar-header pt-4 px-4 bg-white">
             <div class="flex justify-between items-center mb-4">
                 <h2 id="current-month-year" class="text-lg font-bold text-slate-800 capitalize">Janeiro 2024</h2>
-                <div class="flex gap-1">
+                <div class="flex gap-1 items-center">
+                    <!-- Botão Bloqueio Novo -->
+                    <button onclick="abrirModalBloqueio()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 mr-2 btn-anim">
+                        <i data-lucide="lock" class="w-4 h-4"></i>
+                    </button>
+
                     <button onclick="mudarSemana(-1)" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 btn-anim text-slate-500">
                         <i data-lucide="chevron-left" class="w-5 h-5"></i>
                     </button>
@@ -118,7 +123,7 @@
         </div>
     </div>
 
-    <!-- 3. PACOTES (COM PESQUISA E HISTÓRICO) -->
+    <!-- 3. PACOTES -->
     <div id="tab-pacotes" class="tab-content admin-only">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-slate-800">Pacotes</h2>
@@ -307,6 +312,36 @@
                     </div>
                 </div>
                 <button type="submit" id="btn-salvar-agenda" class="w-full mt-6 py-3 btn-primary font-bold btn-anim">Confirmar</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 4.1 MODAL BLOQUEIO (NOVO) -->
+    <div id="modal-bloqueio" class="modal-overlay">
+        <div class="modal-card">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Bloquear Horário</h3>
+                <button onclick="fecharModal('modal-bloqueio')"><i data-lucide="x" class="text-slate-400"></i></button>
+            </div>
+            <form id="form-bloqueio" onsubmit="salvarBloqueio(event)">
+                <div class="space-y-4">
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600 mb-4">
+                        <p>Use para intervalos, almoço ou compromissos pessoais. O horário ficará indisponível.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Data</label><input type="date" id="input-data-bloqueio" name="data_agendamento" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Horário</label><input type="time" id="input-hora-bloqueio" name="hora_inicio" required class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base"></div>
+                    </div>
+                    <div>
+                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Duração (min)</label>
+                         <input type="number" name="duracao_minutos" required value="60" class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Motivo (Opcional)</label>
+                        <input type="text" name="motivo" placeholder="Ex: Almoço, Médico..." class="w-full p-3 bg-slate-50 border rounded-xl outline-none text-base">
+                    </div>
+                </div>
+                <button type="submit" id="btn-salvar-bloqueio" class="w-full mt-6 py-3 bg-slate-700 text-white rounded-xl font-bold btn-anim">Confirmar Bloqueio</button>
             </form>
         </div>
     </div>
@@ -535,16 +570,17 @@
                     <i data-lucide="check" class="w-4 h-4"></i> Marcar como Realizado
                 </button>
                 
-                <div class="grid grid-cols-2 gap-2 pt-2">
-                    <button id="btn-editar-horario" onclick="abrirModalEditarAgendamento()" class="p-3 bg-slate-50 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-100 btn-anim flex flex-col items-center gap-1">
-                        <i data-lucide="clock" class="w-4 h-4"></i> Editar
-                    </button>
-                    <button id="btn-cancelar" onclick="prepararStatus('Cancelado', this)" class="p-3 bg-red-50 text-red-600 font-bold rounded-xl text-xs hover:bg-red-100 btn-anim flex flex-col items-center gap-1">
-                        <i data-lucide="x-circle" class="w-4 h-4"></i> Cancelar
-                    </button>
-                </div>
+                <!-- BOTOES EDITAR/CANCELAR MELHORADOS (LARGURA TOTAL) -->
+                <button id="btn-editar-horario" onclick="abrirModalEditarAgendamento()" class="w-full p-3 bg-white text-slate-700 font-bold rounded-xl text-sm border border-slate-200 flex items-center justify-center gap-2 btn-anim hover:bg-slate-50">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i> Editar Agendamento
+                </button>
+                
+                <button id="btn-cancelar" onclick="prepararStatus('Cancelado', this)" class="w-full p-3 bg-red-50 text-red-600 font-bold rounded-xl text-sm border border-red-100 flex items-center justify-center gap-2 btn-anim hover:bg-red-100">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i> Cancelar Agendamento
+                </button>
+                
                  <!-- Botão Excluir escondido (visível apenas se cancelado) -->
-                <button id="btn-excluir" onclick="prepararStatus('Excluir', this)" class="hidden w-full p-3 text-red-400 text-xs font-bold mt-2">Apagar Permanentemente</button>
+                <button id="btn-excluir" onclick="prepararStatus('Excluir', this)" class="hidden w-full p-3 text-red-400 text-xs font-bold mt-2 hover:text-red-600">Apagar Permanentemente</button>
             </div>
 
             <input type="hidden" id="id-agendamento-ativo">
@@ -562,7 +598,6 @@
     </nav>
 
     <!-- SCRIPTS -->
-    <!-- Script de lógica principal, certifique-se de que os arquivos auxiliares (js/globals.js, etc.) sejam importados corretamente se estiver usando módulos separados -->
     <script src="js/globals.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/agenda.js"></script>
