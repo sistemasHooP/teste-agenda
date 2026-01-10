@@ -1,3 +1,22 @@
+// --- GESTÃO DE CACHE (Movidor para Utils para acesso global) ---
+
+function saveToCache(key, data) {
+    // CACHE_KEY_PREFIX vem do globals.js
+    if (typeof CACHE_KEY_PREFIX !== 'undefined') {
+        localStorage.setItem(CACHE_KEY_PREFIX + key, JSON.stringify(data));
+    } else {
+        console.error("CACHE_KEY_PREFIX não definido. Verifique se globals.js foi carregado.");
+    }
+}
+
+function getFromCache(key) {
+    if (typeof CACHE_KEY_PREFIX !== 'undefined') {
+        const data = localStorage.getItem(CACHE_KEY_PREFIX + key);
+        return data ? JSON.parse(data) : null;
+    }
+    return null;
+}
+
 // --- UTILS DE UI E HELPERS ---
 
 function formatarDataBr(s) { 
@@ -69,6 +88,7 @@ function fecharModal(id) {
 
 function renderizarColorPicker() { 
     const c = document.getElementById('color-picker-container'); 
+    if(!c) return;
     c.innerHTML = ''; 
     PALETA_CORES.forEach((cor, i) => {
         const d = document.createElement('div');
@@ -85,6 +105,7 @@ function renderizarColorPicker() {
 
 function renderizarColorPickerEdicao() { 
     const c = document.getElementById('edit-color-picker-container'); 
+    if(!c) return;
     c.innerHTML = ''; 
     PALETA_CORES.forEach((cor, i) => {
         const d = document.createElement('div');
@@ -101,5 +122,6 @@ function renderizarColorPickerEdicao() {
 
 function showSyncIndicator(show) { 
     isSyncing = show; 
-    document.getElementById('sync-indicator').style.display = show ? 'flex' : 'none'; 
+    const el = document.getElementById('sync-indicator');
+    if(el) el.style.display = show ? 'flex' : 'none'; 
 }
