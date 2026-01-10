@@ -308,17 +308,49 @@ function mudarProfissionalAgenda() {
 
 // --- MODAIS DA AGENDA (LÓGICA PRINCIPAL) ---
 
-function abrirModalAgendamento(h) { 
+function abrirModalAgendamento(h, tabDefault = 'agendar') { 
     document.getElementById('modal-agendamento').classList.add('open'); 
-    document.getElementById('input-data-modal').value = dataAtual.toISOString().split('T')[0]; 
-    if (h) document.getElementById('input-hora-modal').value = h; 
+    
+    const dateStr = dataAtual.toISOString().split('T')[0];
+    document.getElementById('input-data-modal').value = dateStr; 
+    document.getElementById('input-data-bloqueio').value = dateStr;
+
+    if (h) {
+        document.getElementById('input-hora-modal').value = h; 
+        document.getElementById('input-hora-bloqueio').value = h;
+    }
     
     if (currentUser.nivel === 'admin') { 
         document.getElementById('div-select-prof-modal').classList.remove('hidden'); 
         document.getElementById('select-prof-modal').value = currentProfId; 
     } else { 
         document.getElementById('div-select-prof-modal').classList.add('hidden'); 
-    } 
+    }
+
+    switchTipoAgendamento(tabDefault);
+}
+
+function switchTipoAgendamento(tipo) {
+    const btnAgendar = document.getElementById('btn-tipo-agendar');
+    const btnBloquear = document.getElementById('btn-tipo-bloquear');
+    const formAgendar = document.getElementById('form-agendamento');
+    const formBloquear = document.getElementById('form-bloqueio');
+
+    if (tipo === 'agendar') {
+        btnAgendar.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all bg-white text-blue-600 shadow-sm";
+        btnBloquear.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all text-slate-500 hover:text-slate-700";
+        formAgendar.classList.remove('hidden');
+        formAgendar.classList.add('block');
+        formBloquear.classList.add('hidden');
+        formBloquear.classList.remove('block');
+    } else {
+        btnAgendar.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all text-slate-500 hover:text-slate-700";
+        btnBloquear.className = "flex-1 py-2 text-sm font-bold rounded-lg transition-all bg-white text-blue-600 shadow-sm";
+        formAgendar.classList.add('hidden');
+        formAgendar.classList.remove('block');
+        formBloquear.classList.remove('hidden');
+        formBloquear.classList.add('block');
+    }
 }
 
 function abrirModalEditarAgendamento() { 
@@ -359,11 +391,6 @@ async function salvarEdicaoAgendamento(e) {
 
 // --- BLOQUEIO DE HORÁRIOS ---
 
-function abrirModalBloqueio() {
-    document.getElementById('input-data-bloqueio').value = dataAtual.toISOString().split('T')[0];
-    document.getElementById('modal-bloqueio').classList.add('open');
-}
-
 async function salvarBloqueio(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-salvar-bloqueio');
@@ -376,7 +403,7 @@ async function salvarBloqueio(e) {
     const duracao = f.duracao_minutos.value;
     const motivo = f.motivo.value;
     
-    fecharModal('modal-bloqueio');
+    fecharModal('modal-agendamento'); // Fecha o modal unificado
     
     // Otimista
     const tempId = 'blk_' + Date.now();
@@ -458,20 +485,22 @@ function abrirModalDetalhes(id) {
     const btnConcluir = document.getElementById('btn-concluir');
 
     // Reset estados
-    btnConfirmar.disabled = false;
-    btnConfirmar.classList.remove('opacity-70', 'cursor-default');
-    btnConfirmar.classList.add('btn-anim');
+    if(btnConfirmar) {
+        btnConfirmar.disabled = false;
+        btnConfirmar.classList.remove('opacity-70', 'cursor-default');
+        btnConfirmar.classList.add('btn-anim');
+    }
 
     if (isConcluido || isCancelado) {
-        btnEditar.style.display = 'none';
-        btnCancelar.style.display = 'none';
-        btnConfirmar.style.display = 'none';
-        btnConcluir.style.display = 'none';
-        btnExcluir.style.display = 'block'; 
+        if(btnEditar) btnEditar.style.display = 'none';
+        if(btnCancelar) btnCancelar.style.display = 'none';
+        if(btnConfirmar) btnConfirmar.style.display = 'none';
+        if(btnConcluir) btnConcluir.style.display = 'none';
+        if(btnExcluir) btnExcluir.style.display = 'block'; 
     } else {
-        btnEditar.style.display = 'flex';
-        btnCancelar.style.display = 'flex';
-        btnExcluir.style.display = 'none';
+        if(btnEditar) btnEditar.style.display = 'flex';
+        if(btnCancelar) btnCancelar.style.display = 'flex';
+        if(btnExcluir) btnExcluir.style.display = 'none';
         
         if (ag.status === 'Confirmado') {
             btnConfirmar.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Já Confirmado';
@@ -547,8 +576,10 @@ function prepararStatus(st, btnEl) {
 }
 
 async function executarMudancaStatusOtimista(id, st, devolver) {
-    fecharModal('modal-confirmacao'); 
-    fecharModal('modal-detalhes');
+    if(typeof fecharModal === 'function') {
+        fecharModal('modal-confirmacao'); 
+        fecharModal('modal-detalhes');
+    }
     
     const index = agendamentosRaw.findIndex(a => a.id_agendamento === id); 
     if (index === -1) return; 
