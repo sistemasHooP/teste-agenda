@@ -173,7 +173,6 @@ function iniciarApp() {
 
 function carregarDoCache() {
     // Carregar dados do localStorage para as variáveis globais
-    // (getFromCache deve estar disponível via js/utils.js)
     if(typeof getFromCache !== 'function') return;
 
     const cachedServicos = getFromCache('servicos');
@@ -228,7 +227,6 @@ async function sincronizarDadosAPI() {
     if (!hasData && agendamentosRaw.length === 0 && container) { 
         container.innerHTML = '<div class="p-10 text-center text-slate-400"><div class="spinner spinner-dark mx-auto mb-2 border-slate-300 border-t-blue-500"></div><p>A carregar agenda...</p></div>'; 
     } else { 
-        // showSyncIndicator deve estar em js/utils.js
         if(typeof showSyncIndicator === 'function') showSyncIndicator(true); 
     }
     
@@ -253,7 +251,7 @@ async function sincronizarDadosAPI() {
             currentUser.nivel === 'admin' ? fetchSafe('getUsuarios') : Promise.resolve([]) 
         ]);
         
-        // Atualizar Estado Global e Cache (saveToCache em js/utils.js)
+        // Atualizar Estado Global e Cache
         if (resConfig && resConfig.abertura) { 
             config = resConfig; 
             if (!config.horarios_semanais) config.horarios_semanais = []; 
@@ -331,4 +329,126 @@ function recarregarAgendaComFiltro(silencioso = false) {
         console.error(e); 
         if(typeof showSyncIndicator === 'function') showSyncIndicator(false); 
     });
+}
+
+// --- TRATAMENTO DE STATUS E EXCLUSÃO (CORRIGIDO) ---
+
+function prepararStatus(st, btnEl) { 
+    const id = document.getElementById('id-agendamento-ativo').value; 
+    const idPacote = document.getElementById('id-pacote-agendamento-ativo').value; 
+    
+    // Busca o agendamento atual para verificar o status real
+    const agendamentoAtual = agendamentosRaw.find(a => a.id_agendamento === id);
+    const statusAtual = agendamentoAtual ? agendamentoAtual.status : '';
+
+    const contentBotao = btnEl ? btnEl.innerHTML : '';
+    
+    if (String(id).startsWith('temp_')) { 
+        if (btnEl) { 
+            setLoading(btnEl, true, 'Sincronizando...'); 
+            setTimeout(() => { setLoading(btnEl, false, contentBotao); }, 2000); 
+        } 
+        return; 
+    }
+    
+    if (st === 'Excluir') {
+        // CORREÇÃO CRÍTICA: Se já estiver Cancelado, não devolve crédito novamente.
+        if (idPacote && statusAtual !== 'Cancelado') {
+            mostrarConfirmacao('Apagar Agendamento', 'Este item pertence a um pacote. Deseja devolver o crédito ao cliente antes de apagar?', 
+                () => executarMudancaStatusOtimista(id, st, true), // Sim, devolver
+                () => executarMudancaStatusOtimista(id, st, false), // Não, apenas apagar
+                'Sim, Devolver', 'Não, só Apagar'
+            );
+        } else {
+            // Se não tem pacote OU já está cancelado, apenas apaga (sem opção de devolução)
+            mostrarConfirmacao('Apagar Agendamento', 'Tem certeza que deseja apagar permanentemente este registro?', 
+                () => executarMudancaStatusOtimista(id, st, false)
+            );
+        }
+    } else if (st === 'Cancelado') { 
+        if (idPacote) { 
+            mostrarConfirmacao('Cancelar com Pacote', 'Devolver crédito ao cliente?', 
+                () => executarMudancaStatusOtimista(id, st, true), 
+                () => executarMudancaStatusOtimista(id, st, false), 
+                'Sim, Devolver', 'Não, Debitar' 
+            ); 
+        } else { 
+            mostrarConfirmacao('Cancelar Agendamento', 'Tem certeza que deseja cancelar?', 
+                () => executarMudancaStatusOtimista(id, st, false)
+            ); 
+        } 
+    } else if (st === 'Confirmado') { 
+        executarMudancaStatusOtimista(id, st, false); 
+    } else { 
+        executarMudancaStatusOtimista(id, st, false); 
+    } 
+}
+
+async function executarMudancaStatusOtimista(id, st, devolver) {
+    if(typeof fecharModal === 'function') {
+        fecharModal('modal-confirmacao'); 
+        fecharModal('modal-detalhes');
+    }
+    
+    const index = agendamentosRaw.findIndex(a => a.id_agendamento === id); 
+    if (index === -1) return; 
+    
+    const backup = { ...agendamentosRaw[index] };
+    
+    // Atualização otimista local
+    if (st === 'Excluir') { 
+        agendamentosRaw.splice(index, 1); 
+    } else { 
+        agendamentosRaw[index].status = st; 
+    } 
+    
+    // Se for devolver crédito, atualizar saldo do pacote otimisticamente
+    if (devolver) {
+        const idPacote = backup.id_pacote_usado || backup.id_pacote;
+        const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
+        if (pIndex > -1) {
+            pacotesCache[pIndex].qtd_restante = parseInt(pacotesCache[pIndex].qtd_restante) + 1;
+            saveToCache('pacotes', pacotesCache);
+        }
+    }
+
+    saveToCache('agendamentos', agendamentosRaw); 
+    if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual();
+    
+    if(typeof showSyncIndicator === 'function') showSyncIndicator(true); 
+    isSaving = true;
+    
+    try { 
+        const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateStatusAgendamento', id_agendamento: id, novo_status: st, devolver_credito: devolver }) }); 
+        const data = await res.json(); 
+        
+        if (data.status !== 'sucesso') { throw new Error(data.mensagem || 'Erro no servidor'); } 
+        
+        // Recarregar pacotes se houve devolução para garantir sincronia
+        if (devolver) setTimeout(() => { if(typeof carregarPacotes === 'function') carregarPacotes(); }, 1000); 
+        
+        if(typeof showSyncIndicator === 'function') showSyncIndicator(false); 
+    } catch (e) { 
+        console.error("Erro update status", e); 
+        
+        // Rollback em caso de erro
+        if (st === 'Excluir') agendamentosRaw.splice(index, 0, backup); 
+        else agendamentosRaw[index] = backup; 
+        
+        if (devolver) {
+            const idPacote = backup.id_pacote_usado || backup.id_pacote;
+            const pIndex = pacotesCache.findIndex(p => p.id_pacote === idPacote);
+            if (pIndex > -1) {
+                pacotesCache[pIndex].qtd_restante = Math.max(0, parseInt(pacotesCache[pIndex].qtd_restante) - 1);
+                saveToCache('pacotes', pacotesCache);
+            }
+        }
+        
+        saveToCache('agendamentos', agendamentosRaw); 
+        if(typeof atualizarAgendaVisual === 'function') atualizarAgendaVisual(); 
+        mostrarAviso('Erro de conexão. Alteração não salva.'); 
+        if(typeof showSyncIndicator === 'function') showSyncIndicator(false); 
+    } finally { 
+        isSaving = false; 
+    }
 }
